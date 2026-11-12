@@ -116,6 +116,20 @@ button.mini{padding:1px 8px;font-size:13px;border-radius:6px;margin-left:3px;bac
 .dl-row{display:flex;justify-content:space-between;align-items:center;padding:3px 4px 3px 8px;border-bottom:1px solid #262b36;border-left:3px solid var(--lv1);font-size:13px}
 .dl-row small{color:var(--accent)}
 .dl-row.lvline2{border-left-color:var(--lv2)} .dl-row.lvline3{border-left-color:var(--lv3)} .dl-row.lvline4{border-left-color:var(--lv4)}
+.card.spell{background:#e9f6ec;border-color:#2e8b57}
+.card.spell.k-field{background:#e6f1fb;border-color:#2b6cb0}
+.card .c-kind{font-size:10px;font-weight:800;color:#2e8b57;margin-top:1px}
+.card.k-field .c-kind{color:#2b6cb0}
+.card .c-text{font-size:11px;line-height:1.45;margin-top:4px;color:#333}
+.card .c-buff{font-size:11px;font-weight:800;color:#1f7a3a;margin-top:1px}
+.card .c-fieldfx{font-size:11px;font-weight:800;color:#2b6cb0;margin-top:1px}
+.badge{font-size:12px;font-weight:800;background:#1f7a3a;color:#fff;border-radius:6px;padding:2px 8px}
+button.interrupt{font-size:12px;padding:4px 10px;margin-left:auto}
+button.interrupt.on{background:var(--accent);color:#1a1a1a}
+.fieldbox{margin-top:10px;padding:8px;border-radius:8px;background:#0e1117;font-size:13px;border-left:4px solid #2b6cb0}
+.fieldbox.empty{color:var(--dim);border-left-color:var(--line)}
+.dl-row.spline-magic{border-left-color:#2e8b57} .dl-row.spline-field{border-left-color:#2b6cb0}
+.log .spell-name{color:#7fe0a0}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#2a1d1d;border:1px solid var(--op);color:#fff;padding:10px 16px;border-radius:10px;z-index:60;font-weight:700}
 </style>
 </head>
@@ -149,6 +163,8 @@ const Engine = (() => {
       4: [[1, 1, 1], [2, 2], [3]],
     },
     firstPlayerDraws: false,        // [仮] 先攻の最初のドロー
+    fieldPerTurn: 1,                // [仮] フィールドカードを出せる枚数(自分のターンに)
+    randomDeckSpells: 10,           // [仮] ランダムデッキに入れるマジック・フィールドの枚数
     // ---- [未決定] 仮の動き ----
     canAttackOnSummonTurn: true,    // 召喚したターンに攻撃できる
     reflectDamageOnLowAttack: true, // 攻撃力 < 防御力 のとき差分を攻撃側が受ける
@@ -189,18 +205,23 @@ const Engine = (() => {
 
   function makeDB(prefectures) {
     const db = {};
-    for (const p of prefectures) db[p.no] = p;
+    for (const p of prefectures) db[p.no] = Object.assign({ kind: 'pref' }, p);
+    for (const c of SPELLS) db[c.id] = c;
     return db;
   }
+  const kindOf = (db, id) => (db[id] && db[id].kind) || 'pref';
 
   // ランダムデッキ(フェーズ3のデッキ構築までのつなぎ)
   function randomDeck(prefectures, config, seed) {
     const cfg = mergeConfig(DEFAULT_CONFIG, config);
     const s = { rng: seed | 0 };
-    const pool = [];
+    const nSpell = Math.min(cfg.randomDeckSpells || 0, SPELLS.length * cfg.maxCopies, cfg.deckSize);
+    const pool = [], spells = [];
     for (const p of prefectures) for (let i = 0; i < cfg.maxCopies; i++) pool.push(p.no);
+    for (const c of SPELLS) for (let i = 0; i < cfg.maxCopies; i++) spells.push(c.id);
     shuffleInPlace(s, pool);
-    return pool.slice(0, cfg.deckSize);
+    shuffleInPlace(s, spells);
+    return pool.slice(0, cfg.deckSize - nSpell).concat(spells.slice(0, nSpell));
   }
 
   function validateDeck(deck, db, config) {
@@ -228,13 +249,24 @@ const Engine = (() => {
     const base = db[unitNo(s, unit)];
     const n = unit.cards.length;
     const mult = s.config.stackSameName ? stackMultiplier(s.config, n) : 1;
+    let bAtk = 1, bDef = 1;
+    for (const b of unit.buffs || []) { bAtk *= b.atk; bDef *= b.def; }
+    const f = fieldMod(s, base, db);
     return {
       no: base.no, name: base.name, level: base.level, tags: base.tags, count: n, mult,
-      attack: Math.round(base.attack * mult),
-      defense: Math.round(base.defense * Number(s.config.defenseScale)),
+      buffAtk: bAtk, buffDef: bDef, fieldAtk: f.atk, fieldDef: f.def,
+      attack: Math.round(base.attack * mult * bAtk * f.atk),
+      defense: Math.round(base.defense * Number(s.config.defenseScale) * bDef * f.def),
     };
   }
   function findUnit(s, p, id) { return s.players[p].field.find(u => u.id === id); }
+  function fieldMod(s, pref, db) {
+    if (!s.field) return { atk: 1, def: 1 };
+    const def = db[s.cards[s.field.uid]];
+    const m = def && def.mod ? def.mod(pref) : null;
+    return { atk: m && m.atk != null ? m.atk : 1, def: m && m.def != null ? m.def : 1 };
+  }
+  const attacksAllowed = u => 1 + (u.extraAttacks || 0);
 
   // 戦闘結果の計算(実行と予告の両方で使う)
   function resolveBattle(s, attacker, target, db) {
@@ -255,7 +287,7 @@ const Engine = (() => {
     if (s.phase === 'over') return '勝負はついています';
     if (s.active !== p) return '自分のターンではありません';
     if (s.phase !== 'battle') return 'バトルフェイズではありません';
-    if (unit.attacked) return 'この県はもう攻撃しました';
+    if ((unit.attacks || 0) >= attacksAllowed(unit)) return 'この県はもう攻撃しました';
     if (!s.config.canAttackOnSummonTurn && unit.summonedTurn === s.turn) return '召喚したターンは攻撃できません';
     return null;
   }
@@ -270,6 +302,7 @@ const Engine = (() => {
     if (s.active !== p) { res.reason = '自分のターンではありません'; return res; }
     if (s.phase !== 'main') { res.reason = '召喚はメインフェイズだけです'; return res; }
     if (!pl.hand.includes(handUid)) { res.reason = '手札にないカードです'; return res; }
+    if (!card || kindOf(db, no) !== 'pref') { res.reason = '県カードではありません'; return res; }
     if (pl.summonsUsed >= s.config.summonsPerTurn) { res.reason = `このターンはもう召喚しました(1ターン${s.config.summonsPerTurn}回)`; return res; }
     const have = {};
     for (const u of pl.field) { const lv = db[unitNo(s, u)].level; have[lv] = (have[lv] || 0) + 1; }
@@ -324,7 +357,9 @@ const Engine = (() => {
     s.phase = 'main';
     pl.summonsUsed = 0;
     pl.magicUsed = 0; // マジック枠は自分のターン開始でリセット
-    for (const u of pl.field) u.attacked = false;
+    pl.magicBonus = 0;
+    pl.fieldUsed = 0;
+    for (const u of pl.field) { u.attacks = 0; u.extraAttacks = 0; }
     ev.push({ type: 'turnStart', turn: s.turn, player: p });
     const skipDraw = s.turn === 1 && !s.config.firstPlayerDraws;
     if (!skipDraw) draw(s, p, 1, ev, true);
@@ -337,12 +372,258 @@ const Engine = (() => {
     pl.grave.push(...u.cards);
     ev.push({ type: 'destroyed', player: p, unitId, no: s.cards[u.cards[0]], count: u.cards.length, why });
   }
+  function useBarrier(s, p, ev) {
+    const pl = s.players[p];
+    if (!(pl.barrier > 0)) return false;
+    pl.barrier--;
+    ev.push({ type: 'negated', player: p, left: pl.barrier });
+    return true;
+  }
   function damage(s, p, amount, ev, why) {
     if (amount <= 0) return;
     const pl = s.players[p];
     pl.life = Math.max(0, pl.life - amount);
     ev.push({ type: 'damage', player: p, amount, life: pl.life, why });
     if (pl.life <= 0) endGame(s, other(p), 'life', ev);
+  }
+
+  // 県カードを場に置く(同名がいれば重ねる)。召喚と特殊召喚で共通
+  function placeCard(s, p, uid, ev, extra) {
+    const pl = s.players[p];
+    const no = s.cards[uid];
+    const target = s.config.stackSameName ? pl.field.find(u => unitNo(s, u) === no) : null;
+    if (target) {
+      target.cards.push(uid);
+      ev.push(Object.assign({ type: 'stack', player: p, unitId: target.id, no, count: target.cards.length }, extra));
+      return target;
+    }
+    const unit = { id: 'u' + s.nextUnit++, cards: [uid], summonedTurn: s.turn, attacks: 0, extraAttacks: 0, buffs: [] };
+    pl.field.push(unit);
+    ev.push(Object.assign({ type: 'summon', player: p, unitId: unit.id, no }, extra));
+    return unit;
+  }
+  // 手札か山札から1枚抜いて特殊召喚(手札優先)。召喚回数は使わない
+  function findSource(s, p, no) {
+    const pl = s.players[p];
+    return pl.hand.find(u => s.cards[u] === no) || pl.deck.find(u => s.cards[u] === no) || null;
+  }
+  function specialSummon(s, p, uid, ev) {
+    const pl = s.players[p];
+    for (const zone of [pl.hand, pl.deck]) { const i = zone.indexOf(uid); if (i >= 0) { zone.splice(i, 1); break; } }
+    return placeCard(s, p, uid, ev, { special: true, tributes: 0 });
+  }
+  const findByNo = (s, p, no) => s.players[p].field.find(u => unitNo(s, u) === no);
+  function unitsWhere(s, p, db, pred) { return s.players[p].field.filter(u => pred(db[unitNo(s, u)])); }
+  function addBuff(s, p, units, atk, def, source, ev) {
+    for (const u of units) {
+      u.buffs = u.buffs || [];
+      u.buffs.push({ atk, def, source });
+      ev.push({ type: 'buff', player: p, unitId: u.id, no: unitNo(s, u), atk, def, source });
+    }
+  }
+
+  // ---------- マジック・フィールド ----------
+  // 効果と数字はすべて [仮](設計書10章の案から。秋雨さんの調整待ち)
+  // options(s, p, db) → 使えない理由(文字列) か [{label, choice}]
+  const N = { 北海道: 1, 青森: 2, 岩手: 3, 宮城: 4, 福島: 7, 茨城: 8, 栃木: 9, 群馬: 10, 埼玉: 11, 千葉: 12, 東京: 13, 神奈川: 14, 新潟: 15, 富山: 16, 石川: 17, 福井: 18, 長野: 20, 愛知: 23, 大阪: 27, 鳥取: 31, 島根: 32, 広島: 34, 福岡: 40, 佐賀: 41, 熊本: 43, 鹿児島: 46, 沖縄: 47 };
+  const KITAKANTO = [N.茨城, N.栃木, N.群馬];
+  const SEVEN = [N.北海道, N.宮城, N.東京, N.神奈川, N.愛知, N.大阪, N.福岡];
+  // 新幹線の駅がある県(東北・北陸・九州新幹線)
+  const SHINKANSEN = [...new Set([
+    N.東京, N.埼玉, N.栃木, N.福島, N.宮城, N.岩手, N.青森,          // 東北
+    N.東京, N.埼玉, N.群馬, N.長野, N.新潟, N.富山, N.石川, N.福井, // 北陸
+    N.福岡, N.佐賀, N.熊本, N.鹿児島,                             // 九州
+  ])];
+  const TYPHOON = [40, 41, 42, 43, 44, 45, 46, N.沖縄, N.大阪, N.千葉]; // 九州7県・沖縄・大阪・千葉
+  const names = (db, nos) => nos.map(no => db[no].name.replace(/[都府県]$/, '')).join('・');
+  const xLabel = v => `${v}倍`;
+
+  const SPELLS = [
+    {
+      id: 'm_kitakanto', kind: 'magic', name: '北関東最弱連合軍',
+      text: '自分の場に栃木・茨城・群馬のどれかがいる時、残りの県を手札か山札から特殊召喚する。3県がそろっていれば、3体をリリースして埼玉を特殊召喚する',
+      options(s, p, db) {
+        const on = KITAKANTO.filter(no => findByNo(s, p, no));
+        if (!on.length) return '栃木・茨城・群馬のどれかが場にいる時に使えます';
+        if (on.length === 3) return findSource(s, p, N.埼玉) ? [{ label: '北関東3県をリリースして埼玉を特殊召喚', choice: 'saitama' }] : '手札にも山札にも埼玉がいません';
+        const miss = KITAKANTO.filter(no => !on.includes(no) && findSource(s, p, no));
+        return miss.length ? [{ label: `${names(db, miss)}を特殊召喚`, choice: 'call' }] : '残りの県が手札にも山札にもいません';
+      },
+      resolve(s, p, choice, db, ev) {
+        if (choice === 'saitama') {
+          for (const no of KITAKANTO) destroyUnit(s, p, findByNo(s, p, no).id, ev, 'tribute');
+          specialSummon(s, p, findSource(s, p, N.埼玉), ev);
+        } else {
+          for (const no of KITAKANTO) if (!findByNo(s, p, no)) { const src = findSource(s, p, no); if (src) specialSummon(s, p, src, ev); }
+        }
+      },
+    },
+    {
+      id: 'm_seven', kind: 'magic', name: '七大都市そろい踏み',
+      text: '北海道・宮城・東京・神奈川・愛知・大阪・福岡の7県が自分の場にそろっていたら、勝利する',
+      options(s, p, db) {
+        const miss = SEVEN.filter(no => !findByNo(s, p, no));
+        return miss.length ? `あと ${names(db, miss)} が足りません` : [{ label: '七大都市がそろった! 勝利する', choice: 'win' }];
+      },
+      resolve(s, p, choice, db, ev) { endGame(s, p, 'sevenCities', ev); },
+    },
+    {
+      id: 'm_sumitakunai', kind: 'magic', name: '住みたくない県の底力',
+      text: '自分の場の栃木・茨城・群馬の3体をリリースして、山札からマジックをランダムに3枚手札に加える',
+      options(s, p, db) {
+        if (KITAKANTO.some(no => !findByNo(s, p, no))) return '栃木・茨城・群馬が3県とも場にいる時に使えます';
+        const n = s.players[p].deck.filter(u => kindOf(db, s.cards[u]) === 'magic').length;
+        return n ? [{ label: `北関東3県をリリースして、マジックを${Math.min(3, n)}枚手札に加える`, choice: 'go' }] : '山札にマジックがありません';
+      },
+      resolve(s, p, choice, db, ev) {
+        for (const no of KITAKANTO) destroyUnit(s, p, findByNo(s, p, no).id, ev, 'tribute');
+        const pl = s.players[p];
+        const pool = pl.deck.filter(u => kindOf(db, s.cards[u]) === 'magic');
+        shuffleInPlace(s, pool);
+        for (const uid of pool.slice(0, 3)) {
+          pl.deck.splice(pl.deck.indexOf(uid), 1);
+          pl.hand.push(uid);
+          ev.push({ type: 'search', player: p, uid, id: s.cards[uid] });
+        }
+      },
+    },
+    {
+      id: 'm_okonomi', kind: 'magic', name: 'お好み焼きブーム',
+      text: '自分の場に大阪か広島がいれば、その攻撃力が2倍。両方いるなら、どちらか1体を墓地に送り、残った方の攻撃力が4倍',
+      params: { one: 2, both: 4 },
+      options(s, p, db) {
+        const o = findByNo(s, p, N.大阪), h = findByNo(s, p, N.広島);
+        if (o && h) return [
+          { label: `広島を墓地に送り、大阪の攻撃力${xLabel(this.params.both)}`, choice: 'keepOsaka' },
+          { label: `大阪を墓地に送り、広島の攻撃力${xLabel(this.params.both)}`, choice: 'keepHiroshima' },
+        ];
+        if (o || h) return [{ label: `${o ? '大阪' : '広島'}の攻撃力${xLabel(this.params.one)}`, choice: 'one' }];
+        return '大阪か広島が場にいる時に使えます';
+      },
+      resolve(s, p, choice, db, ev) {
+        const o = findByNo(s, p, N.大阪), h = findByNo(s, p, N.広島);
+        if (choice === 'one') { addBuff(s, p, [o || h], this.params.one, 1, this.id, ev); return; }
+        const keep = choice === 'keepOsaka' ? o : h, drop = choice === 'keepOsaka' ? h : o;
+        destroyUnit(s, p, drop.id, ev, 'effect');
+        addBuff(s, p, [keep], this.params.both, 1, this.id, ev);
+      },
+    },
+    {
+      id: 'm_tottori', kind: 'magic', name: '鳥取と島根どっちがどっち?',
+      text: '自分の場に鳥取か島根がいる時、次に相手から受ける攻撃を1回だけ無効にする',
+      options(s, p, db) {
+        return findByNo(s, p, N.鳥取) || findByNo(s, p, N.島根) ? [{ label: '次の相手の攻撃を1回無効にする', choice: 'go' }] : '鳥取か島根が場にいる時に使えます';
+      },
+      resolve(s, p, choice, db, ev) { s.players[p].barrier++; ev.push({ type: 'barrier', player: p, count: s.players[p].barrier }); },
+    },
+    {
+      id: 'm_food', kind: 'magic', name: '食料の底力',
+      text: '自分の場の「農産物」タグの県すべて、攻撃力と防御力が1.5倍',
+      params: { atk: 1.5, def: 1.5 },
+      options(s, p, db) {
+        const us = unitsWhere(s, p, db, c => c.tags.includes('農産物'));
+        return us.length ? [{ label: `農産物の県 ${us.length}体の攻撃力・防御力${xLabel(this.params.atk)}`, choice: 'go' }] : '「農産物」タグの県が場にいません';
+      },
+      resolve(s, p, choice, db, ev) { addBuff(s, p, unitsWhere(s, p, db, c => c.tags.includes('農産物')), this.params.atk, this.params.def, this.id, ev); },
+    },
+    {
+      id: 'm_kannazuki', kind: 'magic', name: '神無月',
+      text: '自分の場の県すべて、攻撃力が1.5倍。島根がいれば(出雲では神在月)2倍',
+      params: { base: 1.5, izumo: 2 },
+      options(s, p, db) {
+        const n = s.players[p].field.length;
+        if (!n) return '自分の場に県がいません';
+        const m = findByNo(s, p, N.島根) ? this.params.izumo : this.params.base;
+        return [{ label: `自分の県 ${n}体の攻撃力${xLabel(m)}${m === this.params.izumo ? '(神在月)' : ''}`, choice: 'go' }];
+      },
+      resolve(s, p, choice, db, ev) {
+        const m = findByNo(s, p, N.島根) ? this.params.izumo : this.params.base;
+        addBuff(s, p, s.players[p].field, m, 1, this.id, ev);
+      },
+    },
+    {
+      id: 'm_inaka', kind: 'magic', name: '地方最高!',
+      text: '自分の場の「田舎」タグの県すべて、攻撃力が1.5倍',
+      params: { atk: 1.5 },
+      options(s, p, db) {
+        const us = unitsWhere(s, p, db, c => c.tags.includes('田舎'));
+        return us.length ? [{ label: `田舎の県 ${us.length}体の攻撃力${xLabel(this.params.atk)}`, choice: 'go' }] : '「田舎」タグの県が場にいません';
+      },
+      resolve(s, p, choice, db, ev) { addBuff(s, p, unitsWhere(s, p, db, c => c.tags.includes('田舎')), this.params.atk, 1, this.id, ev); },
+    },
+    {
+      id: 'm_shinkansen', kind: 'magic', name: '新幹線開業',
+      text: '自分のターンに使う。東北・北陸・九州新幹線の駅がある自分の県は、このターンもう1回攻撃できる',
+      options(s, p, db) {
+        if (s.active !== p) return '自分のターンに使うカードです';
+        const us = unitsWhere(s, p, db, c => SHINKANSEN.includes(c.no));
+        return us.length ? [{ label: `新幹線の県 ${us.length}体がもう1回攻撃できる`, choice: 'go' }] : '新幹線の駅がある県が場にいません';
+      },
+      resolve(s, p, choice, db, ev) {
+        for (const u of unitsWhere(s, p, db, c => SHINKANSEN.includes(c.no))) {
+          u.extraAttacks = (u.extraAttacks || 0) + 1;
+          ev.push({ type: 'extraAttack', player: p, unitId: u.id, no: unitNo(s, u) });
+        }
+      },
+    },
+    {
+      id: 'm_kokunaisen', kind: 'magic', name: '国内線需要増加',
+      text: 'マジックの使用上限が、次の自分のターン開始まで2枚増える',
+      params: { plus: 2 },
+      options(s, p, db) {
+        if (s.config.magicLimit == null) return 'マジックの使用上限がない設定なので、効果がありません';
+        return [{ label: `マジックをあと${this.params.plus}枚多く使えるようにする`, choice: 'go' }];
+      },
+      resolve(s, p, choice, db, ev) { s.players[p].magicBonus += this.params.plus; ev.push({ type: 'magicBonus', player: p, plus: this.params.plus }); },
+    },
+    {
+      id: 'f_typhoon', kind: 'field', name: '台風上陸',
+      text: '九州・沖縄・大阪・千葉の県は、攻撃力が半分になる(両方の場)',
+      mod: pref => TYPHOON.includes(pref.no) ? { atk: 0.5 } : null,
+    },
+    {
+      id: 'f_snow', kind: 'field', name: '大雪',
+      text: '「雪国」タグではない県は、攻撃力が半分になる(両方の場)',
+      mod: pref => pref.tags.includes('雪国') ? null : { atk: 0.5 },
+    },
+    {
+      id: 'f_heat', kind: 'field', name: '猛暑日',
+      text: '「都心」「内陸」タグの県は、攻撃力が0.7倍になる(両方の場)',
+      mod: pref => pref.tags.includes('都心') || pref.tags.includes('内陸') ? { atk: 0.7 } : null,
+    },
+  ];
+  for (const c of SPELLS) {
+    if (c.kind === 'field') c.options = function (s, p) {
+      if (s.active !== p) return 'フィールドは自分のターンにだけ出せます';
+      if (s.players[p].fieldUsed >= s.config.fieldPerTurn) return 'フィールドはこのターンもう出しました';
+      return [{ label: s.field ? `フィールドを「${this.name}」に上書きする` : `フィールドを「${this.name}」にする`, choice: 'set' }];
+    };
+  }
+
+  // 手札のマジック・フィールドが使えるか、どう使えるか
+  function castInfo(s, p, handUid, db) {
+    const res = { ok: false, reason: null, options: [], kind: null };
+    const pl = s.players[p];
+    const def = db[s.cards[handUid]];
+    if (s.phase === 'over') { res.reason = '勝負はついています'; return res; }
+    if (!pl.hand.includes(handUid)) { res.reason = '手札にないカードです'; return res; }
+    if (!def || !def.kind || def.kind === 'pref') { res.reason = 'マジック・フィールドではありません'; return res; }
+    res.kind = def.kind;
+    if (def.kind === 'magic' && s.config.magicLimit != null && pl.magicUsed >= Number(s.config.magicLimit) + (pl.magicBonus || 0)) {
+      res.reason = `マジックはもう使えません(${pl.magicUsed}/${Number(s.config.magicLimit) + (pl.magicBonus || 0)}枚)`;
+      return res;
+    }
+    const o = def.options(s, p, db);
+    if (typeof o === 'string') { res.reason = o; return res; }
+    res.options = o;
+    res.ok = o.length > 0;
+    if (!res.ok) res.reason = '使えません';
+    return res;
+  }
+  function magicLeft(s, p) {
+    if (s.config.magicLimit == null) return null;
+    const pl = s.players[p];
+    return Math.max(0, Number(s.config.magicLimit) + (pl.magicBonus || 0) - pl.magicUsed);
   }
 
   function createGame(opts) {
@@ -352,13 +633,13 @@ const Engine = (() => {
       v: 1, config: cfg, rng: (opts.seed >>> 0) || 1,
       turn: 1, active: first, firstPlayer: first,
       phase: 'main', winner: null, endReason: null,
-      cards: {}, nextUid: 1, nextUnit: 1, players: [],
+      cards: {}, nextUid: 1, nextUnit: 1, players: [], field: null,
     };
     const ev = [{ type: 'gameStart', firstPlayer: first }];
     for (let i = 0; i < 2; i++) {
       const deck = opts.decks[i].map(no => { const uid = 'c' + s.nextUid++; s.cards[uid] = no; return uid; });
       if (opts.shuffle !== false) shuffleInPlace(s, deck);
-      s.players.push({ life: cfg.startLife, deck, hand: [], field: [], grave: [], summonsUsed: 0, magicUsed: 0 });
+      s.players.push({ life: cfg.startLife, deck, hand: [], field: [], grave: [], summonsUsed: 0, magicUsed: 0, magicBonus: 0, fieldUsed: 0, barrier: 0 });
     }
     for (let i = 0; i < 2; i++) draw(s, i, cfg.startHand, ev, false);
     startTurn(s, ev);
@@ -379,16 +660,7 @@ const Engine = (() => {
       if (!info.combos.some(c => sameMultiset(c, lvs))) return `生け贄の組み合わせが違います(${describeCombos(s.config.tributeTable[info.level])})`;
       for (const id of ids) destroyUnit(s, p, id, ev, 'tribute');
       pl.hand.splice(pl.hand.indexOf(a.handUid), 1);
-      const no = s.cards[a.handUid];
-      const target = s.config.stackSameName ? pl.field.find(u => unitNo(s, u) === no) : null;
-      if (target) {
-        target.cards.push(a.handUid);
-        ev.push({ type: 'stack', player: p, unitId: target.id, no, count: target.cards.length, tributes: ids.length });
-      } else {
-        const unit = { id: 'u' + s.nextUnit++, cards: [a.handUid], summonedTurn: s.turn, attacked: false };
-        pl.field.push(unit);
-        ev.push({ type: 'summon', player: p, unitId: unit.id, no, tributes: ids.length });
-      }
+      placeCard(s, p, a.handUid, ev, { tributes: ids.length });
       pl.summonsUsed++;
       return null;
     },
@@ -408,16 +680,18 @@ const Engine = (() => {
       if (a.targetId == null) {
         if (opp.field.length) return '相手の場に県がいる間は直接攻撃できません';
         const st = unitStats(s, att, db);
-        att.attacked = true;
+        att.attacks = (att.attacks || 0) + 1;
         ev.push({ type: 'attack', player: p, attackerId: att.id, attackerNo: st.no, direct: true, atk: st.attack });
+        if (useBarrier(s, op, ev)) return null;
         damage(s, op, st.attack, ev, 'direct');
         return null;
       }
       const tgt = findUnit(s, op, a.targetId);
       if (!tgt) return '攻撃先の県が見つかりません';
       const r = resolveBattle(s, att, tgt, db);
-      att.attacked = true;
+      att.attacks = (att.attacks || 0) + 1;
       ev.push({ type: 'attack', player: p, attackerId: att.id, attackerNo: unitNo(s, att), targetId: tgt.id, targetNo: unitNo(s, tgt), direct: false, atk: r.atk, def: r.def, result: r.kind });
+      if (useBarrier(s, op, ev)) return null;
       if (r.destroyTarget) destroyUnit(s, op, tgt.id, ev, 'battle');
       if (r.destroyAttacker) destroyUnit(s, p, att.id, ev, 'battle');
       if (r.damageTo === 'defender') damage(s, op, r.damage, ev, 'battle');
@@ -430,6 +704,30 @@ const Engine = (() => {
       s.active = other(s.active);
       s.turn++;
       startTurn(s, ev);
+      return null;
+    },
+    cast(s, a, db, ev) {
+      const p = a.player;
+      const info = castInfo(s, p, a.handUid, db);
+      if (!info.ok) return info.reason;
+      const opt = a.choice == null && info.options.length === 1 ? info.options[0] : info.options.find(o => o.choice === a.choice);
+      if (!opt) return '使い方を選んでください';
+      const pl = s.players[p];
+      const def = db[s.cards[a.handUid]];
+      pl.hand.splice(pl.hand.indexOf(a.handUid), 1);
+      ev.push({ type: 'cast', player: p, id: def.id, kind: def.kind, label: opt.label });
+      if (def.kind === 'field') {
+        if (s.field) {
+          s.players[s.field.owner].grave.push(s.field.uid);
+          ev.push({ type: 'fieldGone', player: s.field.owner, id: s.cards[s.field.uid] });
+        }
+        s.field = { uid: a.handUid, owner: p };
+        pl.fieldUsed++;
+      } else {
+        pl.magicUsed++;
+        pl.grave.push(a.handUid);
+        def.resolve(s, p, opt.choice, db, ev);
+      }
       return null;
     },
     concede(s, a, db, ev) {
@@ -454,6 +752,7 @@ const Engine = (() => {
   return {
     DEFAULT_CONFIG, mergeConfig, makeDB, randomDeck, validateDeck,
     createGame, apply, summonInfo, describeCombos, unitStats, resolveBattle, canAttackReason, findUnit,
+    SPELLS, castInfo, magicLeft, attacksAllowed, kindOf,
   };
 })();
 if (typeof module !== 'undefined') module.exports = Engine;
@@ -518,7 +817,29 @@ function newGame() {
   pushLog(r.events);
   render();
 }
-function resetUI() { ui = { mode: null, handUid: null, combos: [], tributes: [], attackerId: null }; }
+function resetUI() { ui = { mode: null, handUid: null, combos: [], tributes: [], attackerId: null, interrupt: null, choice: null }; }
+const isSpell = id => Engine.kindOf(DB, id) !== 'pref';
+const KIND_LABEL = { magic: 'マジック', field: 'フィールド' };
+
+// マジック・フィールドを使う(選び方が複数あればダイアログ)
+function castFlow(p, uid) {
+  const info = Engine.castInfo(state, p, uid, DB);
+  if (!info.ok) { toast(info.reason); return; }
+  if (info.options.length === 1) { act({ type: 'cast', player: p, handUid: uid, choice: info.options[0].choice }); return; }
+  ui.choice = { p, uid, options: info.options };
+  modal = 'choice';
+  render();
+}
+function choiceHTML() {
+  const c = ui.choice;
+  const def = DB[state.cards[c.uid]];
+  return `<div class="modal-bg"><div class="modal">
+    <h2>「${esc(def.name)}」をどう使う?</h2>
+    <p class="meta">${esc(def.text)}</p>
+    <div class="btns" style="display:flex;flex-direction:column;gap:8px">${c.options.map((o, i) => `<button class="primary" data-act="choose" data-i="${i}">${esc(o.label)}</button>`).join('')}</div>
+    <div class="foot"><button data-act="closeModal">やめる</button></div>
+  </div></div>`;
+}
 
 function act(action) {
   const r = Engine.apply(state, action, DB);
@@ -543,16 +864,24 @@ function pushLog(events) {
       case 'turnStart': t = `<span class="t">ターン${e.turn}</span> ${pn(e.player)} の番`; break;
       case 'draw': if (!e.setup) t = `${pn(e.player)} がドロー`; break;
       case 'deckEmpty': t = `${pn(e.player)} の山札が尽きた!`; break;
-      case 'summon': t = `${pn(e.player)} が <b>${nm(e.no)}</b> を召喚${e.tributes ? `(生け贄${e.tributes}枚)` : ''}`; break;
-      case 'stack': t = `${pn(e.player)} が <b>${nm(e.no)}</b> を重ねた → ${e.count}枚重ね${e.tributes ? `(生け贄${e.tributes}枚)` : ''}`; break;
-      case 'destroyed': t = e.why === 'tribute' ? `${pn(e.player)} の ${nm(e.no)} をリリース` : `${pn(e.player)} の ${nm(e.no)} が破壊された`; break;
+      case 'summon': t = `${pn(e.player)} が <b>${nm(e.no)}</b> を${e.special ? '特殊' : ''}召喚${e.tributes ? `(生け贄${e.tributes}枚)` : ''}`; break;
+      case 'stack': t = `${pn(e.player)} が <b>${nm(e.no)}</b> を${e.special ? '特殊召喚して' : ''}重ねた → ${e.count}枚重ね${e.tributes ? `(生け贄${e.tributes}枚)` : ''}`; break;
+      case 'destroyed': t = e.why === 'tribute' ? `${pn(e.player)} の ${nm(e.no)} をリリース` : e.why === 'effect' ? `${pn(e.player)} の ${nm(e.no)} を墓地に送った` : `${pn(e.player)} の ${nm(e.no)} が破壊された`; break;
+      case 'cast': t = `${pn(e.player)} が${KIND_LABEL[e.kind]}「<b class="spell-name">${esc(nm(e.id))}</b>」→ ${esc(e.label)}`; break;
+      case 'fieldGone': t = `フィールド「${esc(nm(e.id))}」は墓地へ`; break;
+      case 'buff': t = `　${nm(e.no)} の攻撃力 ×${e.atk}${e.def !== 1 ? ` / 防御力 ×${e.def}` : ''}`; break;
+      case 'search': t = `　${pn(e.player)} が「${esc(nm(e.id))}」を手札に加えた`; break;
+      case 'barrier': t = `　${pn(e.player)} は次の攻撃を無効にできる(残り${e.count}回)`; break;
+      case 'negated': t = `<b>${pn(e.player)} が攻撃を無効にした!</b>`; break;
+      case 'extraAttack': t = `　${nm(e.no)} はもう1回攻撃できる`; break;
+      case 'magicBonus': t = `　${pn(e.player)} のマジック上限 +${e.plus}`; break;
       case 'attack':
         t = e.direct
           ? `${pn(e.player)} の ${nm(e.attackerNo)} が直接攻撃! 攻撃力 <span class="num">${fmt(e.atk)}</span>`
           : `${pn(e.player)} の ${nm(e.attackerNo)}(攻 <span class="num">${fmt(e.atk)}</span>)→ ${nm(e.targetNo)}(防 <span class="num">${fmt(e.def)}</span>)`;
         break;
       case 'damage': t = `${pn(e.player)} に <b class="num">${fmt(e.amount)}</b> ダメージ${e.why === 'reflect' ? '(跳ね返り)' : ''} → 残り <span class="num">${fmt(e.life)}</span>`; break;
-      case 'gameOver': t = `<b>勝負あり! ${pn(e.winner)} の勝ち</b>(${({ life: 'ライフ0', deckout: '山札切れ', concede: '降参' })[e.reason]})`; break;
+      case 'gameOver': t = `<b>勝負あり! ${pn(e.winner)} の勝ち</b>(${({ life: 'ライフ0', deckout: '山札切れ', concede: '降参', sevenCities: '七大都市そろい踏み' })[e.reason]})`; break;
     }
     if (t) logLines.push(t);
   }
@@ -568,12 +897,26 @@ function cardHTML(st, extra = {}) {
   return `<div class="${cls.join(' ')}" ${extra.attrs || ''}>
     <div class="c-head"><span class="c-name">${esc(st.name)}</span><span class="c-star">${'★'.repeat(st.level)}</span></div>
     ${st.count > 1 ? `<div class="c-stack">${st.count}枚重ね ×${st.mult}</div>` : ''}
+    ${st.buffAtk && (st.buffAtk !== 1 || st.buffDef !== 1) ? `<div class="c-buff">マジック 攻×${+st.buffAtk.toFixed(3)}${st.buffDef !== 1 ? ` 防×${+st.buffDef.toFixed(3)}` : ''}</div>` : ''}
+    ${st.fieldAtk && (st.fieldAtk !== 1 || st.fieldDef !== 1) ? `<div class="c-fieldfx">フィールド 攻×${st.fieldAtk}${st.fieldDef !== 1 ? ` 防×${st.fieldDef}` : ''}</div>` : ''}
     <div class="c-stat atk"><b>攻撃力</b><span>${fmt(st.attack)}</span></div>
     <div class="c-stat def"><b>防御力</b><span>${fmt(st.defense)}</span></div>
     <div class="c-tags">${st.tags.map(t => `<i>${esc(t)}</i>`).join('')}</div>
     ${extra.preview || ''}
   </div>`;
 }
+function spellCardHTML(def, extra = {}) {
+  const cls = ['card', 'spell', 'k-' + def.kind];
+  if (extra.clickable) cls.push('clickable');
+  if (extra.dim) cls.push('dim');
+  return `<div class="${cls.join(' ')}" ${extra.attrs || ''}>
+    <div class="c-head"><span class="c-name">${esc(def.name)}</span></div>
+    <div class="c-kind">${KIND_LABEL[def.kind]}${def.kind === 'magic' ? '(速攻)' : ''}</div>
+    <div class="c-text">${esc(def.text)}</div>
+    ${extra.preview || ''}
+  </div>`;
+}
+function anyCardHTML(id, extra) { return isSpell(id) ? spellCardHTML(DB[id], extra) : cardHTML(handCardStats(id), extra); }
 function handCardStats(no) {
   const b = DB[no];
   return { no, name: b.name, level: b.level, tags: b.tags, count: 1, mult: 1, attack: b.attack, defense: Math.round(b.defense * Number(state.config.defenseScale)) };
@@ -597,7 +940,8 @@ function sideHTML(p) {
     if (me && ui.mode === 'tribute') { ex.clickable = true; ex.selected = ui.tributes.includes(u.id); }
     if (me && state.phase === 'battle') {
       const can = !Engine.canAttackReason(state, p, u);
-      ex.clickable = can; ex.dim = !can && !u.attacked; ex.used = u.attacked; ex.selected = ui.attackerId === u.id;
+      const used = (u.attacks || 0) >= Engine.attacksAllowed(u);
+      ex.clickable = can; ex.dim = !can && !used; ex.used = used; ex.selected = ui.attackerId === u.id;
     }
     if (!me && ui.mode === 'attack' && state.active === op) {
       ex.clickable = true;
@@ -606,21 +950,32 @@ function sideHTML(p) {
     return cardHTML(st, ex);
   }).join('');
   // 手札
-  const showHand = me || showAllHands || state.phase === 'over';
+  const interrupting = ui.interrupt === p && !me;
+  const showHand = me || interrupting || showAllHands || state.phase === 'over';
   const hand = pl.hand.map(uid => {
     if (!showHand) return `<div class="card back"></div>`;
+    const id = state.cards[uid];
     const ex = { attrs: `data-hand="${uid}" data-owner="${p}"` };
-    if (me && state.phase === 'main') {
+    if (state.phase !== 'over' && isSpell(id) && (me || interrupting)) {
+      const info = Engine.castInfo(state, p, uid, DB);
+      ex.clickable = true; ex.dim = !info.ok;
+    } else if (me && state.phase === 'main' && !isSpell(id)) {
       const info = Engine.summonInfo(state, p, uid, DB);
       ex.clickable = true; ex.dim = !info.ok; ex.selected = ui.handUid === uid;
-    }
-    return cardHTML(handCardStats(state.cards[uid]), ex);
+    } else if (interrupting) ex.dim = true;
+    return anyCardHTML(id, ex);
   }).join('');
+  const left = Engine.magicLeft(state, p);
+  const magicInfo = left == null ? 'マジック 上限なし' : `マジック 残り${left}枚`;
+  const interruptBtn = !me && state.phase !== 'over'
+    ? `<button class="interrupt ${interrupting ? 'on' : ''}" data-act="interrupt" data-p="${p}">${interrupting ? '割り込みをやめる' : '割り込みでマジックを使う'}</button>` : '';
   return `<section class="side p${p} ${me ? 'active' : ''}">
     <div class="info">
       <span class="pname">${PNAME[p]}${me ? ' ◀ 手番' : ''}</span>
       <span>ライフ <span class="life num ${hitFx[p] ? 'hit' : ''}">${fmt(pl.life)}</span></span>
-      <span class="meta">デッキ「${esc(deckNames[p])}」 / 山札 ${pl.deck.length} / 墓地 ${pl.grave.length} / 召喚 ${pl.summonsUsed}/${state.config.summonsPerTurn}</span>
+      ${pl.barrier ? `<span class="badge">攻撃無効 ×${pl.barrier}</span>` : ''}
+      <span class="meta">デッキ「${esc(deckNames[p])}」 / 山札 ${pl.deck.length} / 墓地 ${pl.grave.length} / 召喚 ${pl.summonsUsed}/${state.config.summonsPerTurn} / ${magicInfo}</span>
+      ${interruptBtn}
     </div>
     <div class="zone-label">場</div>
     <div class="zone ${pl.field.length ? '' : 'empty'}">${field}</div>
@@ -639,11 +994,17 @@ function hintText() {
     const opp = state.players[1 - state.active];
     return opp.field.length ? '攻撃先の県を選んでください' : '相手の場は空。直接攻撃できます';
   }
-  if (state.phase === 'main') return '手札の県をクリックで召喚';
+  if (ui.interrupt != null) return `${PNAME[ui.interrupt]} の手札からマジックを選んでください`;
+  if (state.phase === 'main') return '手札の県をクリックで召喚。マジックはいつでも使える';
   if (state.phase === 'battle') return '攻撃する自分の県をクリック';
   return '';
 }
 
+function fieldBoxHTML() {
+  if (!state.field) return `<div class="fieldbox empty">フィールド: なし</div>`;
+  const def = DB[state.cards[state.field.uid]];
+  return `<div class="fieldbox"><div>フィールド: <b>${esc(def.name)}</b> <span class="p${state.field.owner}">(${PNAME[state.field.owner]})</span></div><div class="meta">${esc(def.text)}</div></div>`;
+}
 function ctrlHTML() {
   const p = state.active;
   const over = state.phase === 'over';
@@ -670,6 +1031,7 @@ function ctrlHTML() {
     </div>
     <div class="hint">${hintText()}</div>
     <div class="btns">${btns}</div>
+    ${fieldBoxHTML()}
     ${over ? '' : `<div style="margin-top:8px"><button class="danger" data-act="concede" style="width:100%;font-size:12px">${PNAME[p]} が降参</button></div>`}
   </div>`;
 }
@@ -704,6 +1066,7 @@ function render() {
     ${screen === 'deck' ? deckScreenHTML() : playView}
     ${modal === 'settings' ? settingsHTML() : ''}
     ${modal === 'newgame' ? newGameHTML() : ''}
+    ${modal === 'choice' && ui.choice ? choiceHTML() : ''}
     ${screen === 'play' && state.phase === 'over' && !modal ? overHTML() : ''}`;
   const log = document.getElementById('log');
   if (log) log.scrollTop = log.scrollHeight;
@@ -734,7 +1097,10 @@ const REGIONS = [['北海道', 1, 1], ['東北', 2, 7], ['関東', 8, 14], ['中
 const regionOf = no => (REGIONS.find(r => no >= r[1] && no <= r[2]) || ['?'])[0];
 const TAGS = [...new Set(PREFS.flatMap(p => p.tags))];
 let editId = null;
-let filt = { q: '', region: '', level: '', tag: '', sort: 'no' };
+let filt = { q: '', kind: '', region: '', level: '', tag: '', sort: 'no' };
+const SPELL_IDS = Engine.SPELLS.map(c => c.id);
+const cardOrder = id => typeof id === 'number' ? id : 1000 + SPELL_IDS.indexOf(id);
+const sortCards = arr => arr.sort((a, b) => cardOrder(a) - cardOrder(b));
 let deleteArm = false;
 
 const curDeck = () => decks.find(d => d.id === editId) || null;
@@ -751,6 +1117,14 @@ function newDeck(cards = [], name) {
 }
 function ensureDeck() { if (!curDeck()) { if (decks.length) editId = decks[0].id; else newDeck(); } }
 
+function filteredCards() {
+  const q = filt.q.trim();
+  const prefOnly = filt.region || filt.level || filt.tag;
+  const prefs = (!filt.kind || filt.kind === 'pref') ? filteredPrefs().map(p => p.no) : [];
+  const spells = (!filt.kind && !prefOnly) || filt.kind === 'magic' || filt.kind === 'field'
+    ? Engine.SPELLS.filter(c => (!filt.kind || c.kind === filt.kind) && (!q || c.name.includes(q))).map(c => c.id) : [];
+  return prefs.concat(spells);
+}
 function filteredPrefs() {
   const q = filt.q.trim();
   const list = PREFS.filter(p =>
@@ -765,7 +1139,7 @@ function addCard(no) {
   const d = curDeck();
   if (countIn(d, no) >= config.maxCopies) { toast(`同じ県は${config.maxCopies}枚まで`); return; }
   if (d.cards.length >= config.deckSize) { toast(`デッキは${config.deckSize}枚まで`); return; }
-  d.cards.push(no); d.cards.sort((a, b) => a - b);
+  d.cards.push(no); sortCards(d.cards);
   persistDecks(); render();
 }
 function removeCard(no) {
@@ -776,25 +1150,27 @@ function removeCard(no) {
 function fillDeck() {
   const d = curDeck();
   const room = [];
-  for (const p of filteredPrefs()) for (let i = countIn(d, p.no); i < config.maxCopies; i++) room.push(p.no);
+  for (const id of filteredCards()) for (let i = countIn(d, id); i < config.maxCopies; i++) room.push(id);
   for (let i = room.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [room[i], room[j]] = [room[j], room[i]]; }
   const need = config.deckSize - d.cards.length;
   const add = room.slice(0, need);
-  d.cards.push(...add); d.cards.sort((a, b) => a - b);
+  d.cards.push(...add); sortCards(d.cards);
   persistDecks(); render();
-  if (add.length < need) toast(`絞り込み中の県だけでは足りず、${add.length}枚だけ入れました(あと${need - add.length}枚)`);
+  if (add.length < need) toast(`絞り込み中のカードだけでは足りず、${add.length}枚だけ入れました(あと${need - add.length}枚)`);
 }
 
 function poolHTML() {
   const d = curDeck();
-  const list = filteredPrefs();
-  if (!list.length) return '<p class="meta">当てはまる県がありません</p>';
-  return list.map(p => {
-    const n = countIn(d, p.no);
+  const list = filteredCards();
+  if (!list.length) return '<p class="meta">当てはまるカードがありません</p>';
+  return list.map(id => {
+    const n = countIn(d, id);
     const full = n >= config.maxCopies || d.cards.length >= config.deckSize;
+    const foot = `<div class="pool-foot"><span class="${n ? 'in' : ''}">${isSpell(id) ? KIND_LABEL[DB[id].kind] : regionOf(id)} ${n}/${config.maxCopies}枚</span>
+      <span><button class="mini" data-remove="${id}" ${n ? '' : 'disabled'}>−</button><button class="mini" data-add="${id}" ${full ? 'disabled' : ''}>＋</button></span></div>`;
+    if (isSpell(id)) return spellCardHTML(DB[id], { clickable: !full, dim: full && !n, attrs: `data-add="${id}"`, preview: foot });
+    const p = DB[id];
     const st = { no: p.no, name: p.name, level: p.level, tags: p.tags, count: 1, mult: 1, attack: p.attack, defense: Math.round(p.defense * Number(config.defenseScale)) };
-    const foot = `<div class="pool-foot"><span class="${n ? 'in' : ''}">${regionOf(p.no)} ${n}/${config.maxCopies}枚</span>
-      <span><button class="mini" data-remove="${p.no}" ${n ? '' : 'disabled'}>−</button><button class="mini" data-add="${p.no}" ${full ? 'disabled' : ''}>＋</button></span></div>`;
     return cardHTML(st, { clickable: !full, dim: full && !n, attrs: `data-add="${p.no}"`, preview: foot });
   }).join('');
 }
@@ -805,18 +1181,23 @@ function deckScreenHTML() {
   const errs = deckErrors(d);
   const lv = { 1: 0, 2: 0, 3: 0, 4: 0 };
   let atk = 0;
-  for (const no of d.cards) { lv[DB[no].level]++; atk += DB[no].attack; }
-  const uniq = [...new Set(d.cards)];
+  let nMagic = 0, nField = 0;
+  for (const id of d.cards) {
+    if (isSpell(id)) { if (DB[id].kind === 'magic') nMagic++; else nField++; continue; }
+    lv[DB[id].level]++; atk += DB[id].attack;
+  }
+  const uniq = sortCards([...new Set(d.cards)]);
   const sel = (key, label, opts) => `<select data-filter="${key}"><option value="">${label}</option>${opts.map(([v, l]) => `<option value="${v}" ${String(filt[key]) === String(v) ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
   return `<div class="deckscreen">
     <section class="pool-panel">
       <div class="filters">
-        <input type="search" data-filter="q" placeholder="県名でさがす" value="${esc(filt.q)}">
+        <input type="search" data-filter="q" placeholder="名前でさがす" value="${esc(filt.q)}">
+        ${sel('kind', '全種類', [['pref', '県'], ['magic', 'マジック'], ['field', 'フィールド']])}
         ${sel('region', '全地方', REGIONS.map(r => [r[0], r[0]]))}
         ${sel('level', '全部の星', [1, 2, 3, 4].map(n => [n, '★'.repeat(n)]))}
         ${sel('tag', '全タグ', TAGS.map(t => [t, t]))}
         <select data-filter="sort">${[['no', '県番号順'], ['atk', '攻撃力が高い順'], ['def', '防御力が高い順'], ['level', '星が多い順']].map(([v, l]) => `<option value="${v}" ${filt.sort === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
-        <span class="meta" id="pool-count">${filteredPrefs().length}県</span>
+        <span class="meta" id="pool-count">${filteredCards().length}種類</span>
       </div>
       <div class="zone pool" id="pool">${poolHTML()}</div>
     </section>
@@ -830,15 +1211,16 @@ function deckScreenHTML() {
       <div class="deck-count ${errs.length ? '' : 'done'}"><b class="num">${d.cards.length}</b> / ${config.deckSize} 枚</div>
       <div class="${errs.length ? 'err' : 'okmsg'}">${errs.length ? errs.map(esc).join('<br>') : 'このデッキで対戦できます'}</div>
       <div class="lv-bars">${[1, 2, 3, 4].map(n => `<div><span>${'★'.repeat(n)}</span><i style="width:${d.cards.length ? lv[n] / Math.max(1, config.deckSize) * 100 : 0}%" class="lvbar${n}"></i><b>${lv[n]}</b></div>`).join('')}</div>
+      <div class="meta">マジック ${nMagic}枚 ・ フィールド ${nField}枚</div>
       <div class="meta">デッキの総攻撃力 <span class="num">${fmt(atk)}</span></div>
       <div class="deck-list" data-keep-scroll="decklist">
-        ${uniq.length ? uniq.map(no => `<div class="dl-row lvline${DB[no].level}">
-          <span>${esc(DB[no].name)} <small>${'★'.repeat(DB[no].level)}</small></span>
+        ${uniq.length ? uniq.map(no => `<div class="dl-row ${isSpell(no) ? 'spline-' + DB[no].kind : 'lvline' + DB[no].level}">
+          <span>${esc(DB[no].name)} <small>${isSpell(no) ? KIND_LABEL[DB[no].kind] : '★'.repeat(DB[no].level)}</small></span>
           <span><b>×${countIn(d, no)}</b><button class="mini" data-remove="${no}">−</button><button class="mini" data-add="${no}">＋</button></span>
-        </div>`).join('') : '<p class="meta">左の県をクリックして入れます</p>'}
+        </div>`).join('') : '<p class="meta">左のカードをクリックして入れます</p>'}
       </div>
       <div class="btns">
-        <button data-act="deckFill" ${d.cards.length >= config.deckSize ? 'disabled' : ''}>残りを絞り込み中の県からランダムで埋める</button>
+        <button data-act="deckFill" ${d.cards.length >= config.deckSize ? 'disabled' : ''}>残りを絞り込み中のカードからランダムで埋める</button>
         <div class="row">
           <button data-act="deckClear" ${d.cards.length ? '' : 'disabled'} style="flex:1">空にする</button>
           <button class="danger" data-act="deckDelete" style="flex:1">${deleteArm ? 'もう一度押すと削除' : 'このデッキを削除'}</button>
@@ -852,7 +1234,7 @@ function deckScreenHTML() {
 
 function overHTML() {
   if (overClosed) return '';
-  const reason = ({ life: 'ライフが0になった', deckout: '山札が尽きた', concede: '降参' })[state.endReason];
+  const reason = ({ life: 'ライフが0になった', deckout: '山札が尽きた', concede: '降参', sevenCities: '負け(七大都市がそろった)' })[state.endReason];
   return `<div class="modal-bg" data-act="closeOver"><div class="modal over">
     <h2><span class="p${state.winner}" style="color:var(${state.winner ? '--op' : '--me'})">${PNAME[state.winner]}</span> の勝ち!</h2>
     <p class="meta" style="text-align:center">${PNAME[1 - state.winner]} の${reason}(ターン${state.turn})</p>
@@ -937,8 +1319,9 @@ document.addEventListener('click', e => {
   if (!t) return;
   const a = t.dataset.act;
   if (a !== 'deckDelete' && deleteArm) { deleteArm = false; if (!a && !t.dataset.add && !t.dataset.remove) render(); }
-  if (t.dataset.add) { if (!t.disabled) addCard(Number(t.dataset.add)); return; }
-  if (t.dataset.remove) { removeCard(Number(t.dataset.remove)); return; }
+  const cid = v => /^\d+$/.test(v) ? Number(v) : v;
+  if (t.dataset.add) { if (!t.disabled) addCard(cid(t.dataset.add)); return; }
+  if (t.dataset.remove) { removeCard(cid(t.dataset.remove)); return; }
   if (a) {
     if (a === 'showAll') { showAllHands = t.checked; render(); return; } // [TEST]
     if (a === 'closeOver' && e.target !== t) return;
@@ -947,7 +1330,18 @@ document.addEventListener('click', e => {
       case 'again': overClosed = false; modal = null; newGame(); return;
       case 'startGame':
         saveJSON(SETUP_KEY, setup); overClosed = false; modal = null; newGame(); return;
-      case 'closeModal': modal = null; render(); return;
+      case 'closeModal': modal = null; if (ui.choice) ui.choice = null; render(); return;
+      case 'choose': {
+        const c = ui.choice; const o = c && c.options[Number(t.dataset.i)];
+        modal = null;
+        if (o) act({ type: 'cast', player: c.p, handUid: c.uid, choice: o.choice });
+        return;
+      }
+      case 'interrupt': {
+        const q = Number(t.dataset.p);
+        const on = ui.interrupt === q;
+        resetUI(); ui.interrupt = on ? null : q; render(); return;
+      }
       case 'tabPlay': screen = 'play'; render(); window.scrollTo(0, 0); return;
       case 'tabDeck': screen = 'deck'; render(); window.scrollTo(0, 0); return;
       case 'deckNew': newDeck(); render(); return;
@@ -982,8 +1376,13 @@ document.addEventListener('click', e => {
   if (!state || state.phase === 'over') return;
   const p = state.active;
   if (t.dataset.hand) {
-    if (Number(t.dataset.owner) !== p || state.phase !== 'main') return;
+    const owner = Number(t.dataset.owner);
     const uid = t.dataset.hand;
+    if (isSpell(state.cards[uid])) {
+      if (owner === p || ui.interrupt === owner) castFlow(owner, uid);
+      return;
+    }
+    if (owner !== p || state.phase !== 'main') return;
     const info = Engine.summonInfo(state, p, uid, DB);
     if (!info.ok) { toast(info.reason); return; }
     if (info.combos.some(c => c.length === 0)) { act({ type: 'summon', player: p, handUid: uid, tributes: [] }); return; }
@@ -1023,7 +1422,7 @@ document.addEventListener('input', e => {
   if (ds.filter === 'q') { // 入力中は一覧だけ描き直す(入力欄のフォーカスを保つ)
     filt.q = e.target.value;
     document.getElementById('pool').innerHTML = poolHTML();
-    document.getElementById('pool-count').textContent = `${filteredPrefs().length}県`;
+    document.getElementById('pool-count').textContent = `${filteredCards().length}種類`;
   }
   if (ds.deckname != null) {
     const d = curDeck(); if (!d) return;
