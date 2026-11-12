@@ -29,8 +29,9 @@ const unitOf = (s, p, name) => s.players[p].field.find(u => s.cards[u.cards[0]] 
 section('データ');
 ok(PREFS.length === 47, '47県');
 const lv = {}; PREFS.forEach(p => lv[p.level] = (lv[p.level] || 0) + 1);
-ok(lv[1] === 12 && lv[2] === 25 && lv[3] === 9 && lv[4] === 1, '星の内訳 12/25/9/1');
+ok(lv[1] === 30 && lv[2] === 7 && lv[3] === 9 && lv[4] === 1, '星の内訳 30/7/9/1');
 ok(DB[byName('東京')].attack === 120219900000000, '東京の攻撃力');
+ok(DB[byName('群馬')].level === 1 && DB[byName('栃木')].level === 1 && DB[byName('茨城')].level === 2, '星1の線は群馬まで');
 
 // ---- 開始 ----
 section('開始');
@@ -43,9 +44,9 @@ ok(s.players[0].hand.length === 8, '設定: 手札7 + 先攻ドロー');
 
 // ---- 召喚 ----
 section('召喚');
-// P0 手札: 鳥取(星1) 秋田(星1) 青森(星2) 北海道(星3) 東京(星4)
-s = game([byName('鳥取'), byName('秋田'), byName('青森'), byName('北海道'), byName('東京')], []);
-ok(/生け贄が足りません/.test(err(s, { type: 'summon', player: 0, handUid: handOf(s, 0, '青森'), tributes: [] })), '星2は生け贄なしでは出せない');
+// P0 手札: 鳥取(星1) 秋田(星1) 宮城(星2) 北海道(星3) 東京(星4)
+s = game([byName('鳥取'), byName('秋田'), byName('宮城'), byName('北海道'), byName('東京')], []);
+ok(/生け贄が足りません/.test(err(s, { type: 'summon', player: 0, handUid: handOf(s, 0, '宮城'), tributes: [] })), '星2は生け贄なしでは出せない');
 ok(err(s, { type: 'summon', player: 1, handUid: s.players[1].hand[0], tributes: [] }), '相手のターンには召喚できない');
 s = run(s, { type: 'summon', player: 0, handUid: handOf(s, 0, '鳥取'), tributes: [] });
 ok(s.players[0].field.length === 1, '星1を生け贄なしで召喚');
@@ -53,11 +54,11 @@ ok(/もう召喚/.test(err(s, { type: 'summon', player: 0, handUid: handOf(s, 0,
 s = run(s, { type: 'endTurn', player: 0 });
 ok(s.players[1].hand.length === 6, '後攻はドローする');
 s = run(s, { type: 'endTurn', player: 1 });
-// P0: 場に鳥取。手札 秋田 青森 北海道 東京 + ドロー1
+// P0: 場に鳥取。手札 秋田 宮城 北海道 東京 + ドロー1
 const tottori = unitOf(s, 0, '鳥取').id;
 ok(/組み合わせ/.test(err(s, { type: 'summon', player: 0, handUid: handOf(s, 0, '北海道'), tributes: [] })) || /足りません/.test(err(s, { type: 'summon', player: 0, handUid: handOf(s, 0, '北海道'), tributes: [] })), '星3は星1×1では出せない');
-s = run(s, { type: 'summon', player: 0, handUid: handOf(s, 0, '青森'), tributes: [tottori] });
-ok(s.players[0].field.length === 1 && unitOf(s, 0, '青森'), '星1をリリースして星2');
+s = run(s, { type: 'summon', player: 0, handUid: handOf(s, 0, '宮城'), tributes: [tottori] });
+ok(s.players[0].field.length === 1 && unitOf(s, 0, '宮城'), '星1をリリースして星2');
 ok(s.players[0].grave.length === 1, 'リリースした県は墓地へ');
 // 星4: 星2×2 / 星3×1 / 星1×3
 const info = E.summonInfo(s, 0, handOf(s, 0, '東京'), DB);
