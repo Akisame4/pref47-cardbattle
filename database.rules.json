@@ -1,0 +1,59 @@
+{
+  "rules": {
+    "rooms": {
+      "$room": {
+        ".validate": "$room.matches(/^[0-9a-f]{20}$/)",
+        ".write": "auth != null && ((newData.child('meta/host').val() === auth.uid && (!data.exists() || !(data.child('meta/created').val() > now - 21600000))) || (!newData.exists() && data.child('meta/host').val() === auth.uid))",
+        "meta": {
+          ".read": "auth != null",
+          ".validate": "newData.hasChildren(['host', 'created', 'config'])",
+          "host": { ".validate": "newData.isString()" },
+          "created": { ".validate": "newData.isNumber() && newData.val() <= now" },
+          "config": {
+            ".write": "auth != null && root.child('rooms').child($room).child('meta/host').val() === auth.uid",
+            ".validate": "newData.isString() && newData.val().length <= 4000"
+          },
+          "guest": {
+            ".write": "auth != null && ((!data.exists() && newData.val() === auth.uid && root.child('rooms').child($room).child('meta/host').val() !== auth.uid) || (!newData.exists() && (data.val() === auth.uid || root.child('rooms').child($room).child('meta/host').val() === auth.uid)))",
+            ".validate": "newData.isString()"
+          },
+          "$other": { ".validate": false }
+        },
+        "ready": {
+          ".read": "auth != null && (root.child('rooms').child($room).child('meta/host').val() === auth.uid || root.child('rooms').child($room).child('meta/guest').val() === auth.uid)",
+          ".write": "auth != null && !newData.exists() && root.child('rooms').child($room).child('meta/host').val() === auth.uid",
+          "$seat": {
+            ".write": "auth != null && (($seat === '0' && root.child('rooms').child($room).child('meta/host').val() === auth.uid) || ($seat === '1' && root.child('rooms').child($room).child('meta/guest').val() === auth.uid))",
+            ".validate": "newData.hasChildren(['game', 'deckSize', 'deckName']) && newData.child('game').isNumber() && newData.child('deckSize').isNumber() && newData.child('deckName').isString() && newData.child('deckName').val().length <= 40",
+            "$f": { ".validate": "$f === 'game' || $f === 'deckSize' || $f === 'deckName'" }
+          }
+        },
+        "presence": {
+          ".read": "auth != null && (root.child('rooms').child($room).child('meta/host').val() === auth.uid || root.child('rooms').child($room).child('meta/guest').val() === auth.uid)",
+          "$seat": {
+            ".write": "auth != null && (($seat === '0' && root.child('rooms').child($room).child('meta/host').val() === auth.uid) || ($seat === '1' && root.child('rooms').child($room).child('meta/guest').val() === auth.uid))",
+            ".validate": "newData.isBoolean()"
+          }
+        },
+        "pub": {
+          ".read": "auth != null && (root.child('rooms').child($room).child('meta/host').val() === auth.uid || root.child('rooms').child($room).child('meta/guest').val() === auth.uid)",
+          ".write": "auth != null && root.child('rooms').child($room).child('meta/guest').exists() && (root.child('rooms').child($room).child('meta/host').val() === auth.uid || root.child('rooms').child($room).child('meta/guest').val() === auth.uid)",
+          ".validate": "newData.hasChildren(['game', 'ver', 'json']) && newData.child('game').isNumber() && newData.child('ver').isNumber() && newData.child('json').isString() && newData.child('json').val().length <= 200000 && (!data.exists() || newData.child('game').val() > data.child('game').val() || (newData.child('game').val() === data.child('game').val() && newData.child('ver').val() === data.child('ver').val() + 1))",
+          "$f": { ".validate": "$f === 'game' || $f === 'ver' || $f === 'json'" }
+        },
+        "$other": { ".validate": false }
+      }
+    },
+    "secrets": {
+      "$room": {
+        ".validate": "$room.matches(/^[0-9a-f]{20}$/)",
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.hasChildren(['game', 'cards']) && newData.child('game').isNumber() && newData.child('cards').isString() && newData.child('cards').val().length <= 20000",
+          "$f": { ".validate": "$f === 'game' || $f === 'cards'" }
+        }
+      }
+    }
+  }
+}

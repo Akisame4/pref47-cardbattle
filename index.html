@@ -130,6 +130,17 @@ button.interrupt.on{background:var(--accent);color:#1a1a1a}
 .fieldbox.empty{color:var(--dim);border-left-color:var(--line)}
 .dl-row.spline-magic{border-left-color:#2e8b57} .dl-row.spline-field{border-left-color:#2b6cb0}
 .log .spell-name{color:#7fe0a0}
+.badge.off{background:#6b2a2a}
+.online{max-width:640px;margin:16px auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px}
+.online h2{margin:0 0 6px;font-size:18px;word-break:break-all}
+.online h3{margin:16px 0 6px;font-size:13px;color:var(--sub)}
+.online .row{display:flex;gap:8px;flex-wrap:wrap}
+.online .row input,.online .row select{flex:1;min-width:0}
+.online .seats{display:grid;gap:6px;margin-top:10px}
+.online .seat{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 10px;border-radius:8px;background:#0e1117;border-left:4px solid var(--me)}
+.online .seat.p1{border-left-color:var(--op)}
+.online .rules{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:4px 12px;font-size:13px}
+.online .foot{display:flex;justify-content:flex-end;margin-top:16px}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#2a1d1d;border:1px solid var(--op);color:#fff;padding:10px 16px;border-radius:10px;z-index:60;font-weight:700}
 </style>
 </head>
@@ -637,6 +648,12 @@ const Engine = (() => {
     };
     const ev = [{ type: 'gameStart', firstPlayer: first }];
     for (let i = 0; i < 2; i++) {
+      // オンライン: hiddenDecks = [枚数, 枚数]。uid の並びだけ作り、中身(cards)は各自が自分の分だけ持つ。混ぜるのも各自
+      if (opts.hiddenDecks) {
+        const deck = Array.from({ length: opts.hiddenDecks[i] }, (_, k) => HIDDEN_PREFIX[i] + (k + 1));
+        s.players.push({ life: cfg.startLife, deck, hand: [], field: [], grave: [], summonsUsed: 0, magicUsed: 0, magicBonus: 0, fieldUsed: 0, barrier: 0 });
+        continue;
+      }
       const deck = opts.decks[i].map(no => { const uid = 'c' + s.nextUid++; s.cards[uid] = no; return uid; });
       if (opts.shuffle !== false) shuffleInPlace(s, deck);
       s.players.push({ life: cfg.startLife, deck, hand: [], field: [], grave: [], summonsUsed: 0, magicUsed: 0, magicBonus: 0, fieldUsed: 0, barrier: 0 });
@@ -736,6 +753,38 @@ const Engine = (() => {
     },
   };
 
+  // ---------- オンライン用: 隠す情報の出し入れ ----------
+  // 山札・手札の uid の並びは公開。「どの uid が何のカードか」(cards)は、場・墓地・フィールドに出たものだけ公開する
+  const HIDDEN_PREFIX = ['a', 'b']; // 席0 / 席1 のカードの uid の頭文字
+  function hiddenUids(s) {
+    const out = new Set();
+    for (const pl of s.players) for (const u of pl.hand.concat(pl.deck)) out.add(u);
+    return out;
+  }
+  // 公開してよい形にする(相手に見せる state)
+  function publicState(s) {
+    const hid = hiddenUids(s);
+    const o = clone(s);
+    o.cards = {};
+    for (const u of Object.keys(s.cards)) if (!hid.has(u) && s.cards[u] != null) o.cards[u] = s.cards[u];
+    return o;
+  }
+  // 公開 state に自分の秘密(自分のカードの中身)を足す
+  function withSecret(pub, secretCards) {
+    const o = clone(pub);
+    o.cards = Object.assign({}, pub.cards, secretCards || {});
+    return o;
+  }
+  // 相手に見せるイベント(引いた札・加えた札の中身を消す)
+  function publicEvents(s, ev) {
+    const hid = hiddenUids(s);
+    return ev.map(e => {
+      const o = Object.assign({}, e);
+      if (o.uid && hid.has(o.uid)) { delete o.no; delete o.id; }
+      return o;
+    });
+  }
+
   // 唯一の入口。元の state は変えない
   function apply(state, action, db) {
     if (state.phase === 'over' && action.type !== 'concede') return { ok: false, state, events: [], error: '勝負はついています' };
@@ -753,6 +802,7 @@ const Engine = (() => {
     DEFAULT_CONFIG, mergeConfig, makeDB, randomDeck, validateDeck,
     createGame, apply, summonInfo, describeCombos, unitStats, resolveBattle, canAttackReason, findUnit,
     SPELLS, castInfo, magicLeft, attacksAllowed, kindOf,
+    HIDDEN_PREFIX, hiddenUids, publicState, withSecret, publicEvents,
   };
 })();
 if (typeof module !== 'undefined') module.exports = Engine;
@@ -765,7 +815,12 @@ if (typeof module !== 'undefined') module.exports = Engine;
 const PREFS = JSON.parse(document.getElementById('pref-data').textContent).prefectures;
 const DB = Engine.makeDB(PREFS);
 const CFG_KEY = 'pref47.config.v1';
-const PNAME = ['プレイヤー1', 'プレイヤー2'];
+const LOCAL_NAMES = ['プレイヤー1', 'プレイヤー2'];
+let PNAME = LOCAL_NAMES;
+let net = null;           // オンライン対戦中の部屋(下の「オンライン対戦」)
+const online = () => screen === 'online' && !!net;
+// 色の番号: オンラインでは自分を青(0)・相手を赤(1)にする
+const col = p => online() ? (p === net.me ? 0 : 1) : p;
 const fmt = n => Math.round(n).toLocaleString('ja-JP');
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -782,7 +837,17 @@ let ui = { mode: null, handUid: null, combos: [], tributes: [], attackerId: null
 let showAllHands = false; // [TEST] 両方の手札を表示
 let modal = null;         // 'settings' | 'newgame' | null
 let hitFx = [false, false];
-let screen = 'play';      // 'play' | 'deck'
+let screen = 'play';      // 'play' | 'deck' | 'online'
+// 盤面はローカル試遊とオンラインで別々に持ち、画面を切り替えたときに入れ替える
+const slots = { play: null, online: { state: null, logLines: [], deckNames: ['', ''], hitFx: [false, false] } };
+function setScreen(to) {
+  if (screen === 'play') slots.play = { state, logLines, deckNames, hitFx };
+  screen = to;
+  resetUI();
+  const s = to === 'play' ? slots.play : to === 'online' ? slots.online : null;
+  if (s) ({ state, logLines, deckNames, hitFx } = s);
+  PNAME = to === 'online' && net ? net.names : LOCAL_NAMES;
+}
 
 // ---------- 端末に保存するもの ----------
 const DECKS_KEY = 'pref47.decks.v1';
@@ -804,6 +869,7 @@ function resolveDeck(choice, seed, p) {
 }
 
 function newGame() {
+  if (screen !== 'play') setScreen('play');
   const seed = (Math.random() * 2 ** 31) | 0;
   const d0 = resolveDeck(setup.decks[0], seed ^ 0x1234, 0);
   const d1 = resolveDeck(setup.decks[1], seed ^ 0x9876, 1);
@@ -811,8 +877,8 @@ function newGame() {
   const first = setup.first === 'random' ? (seed & 1) : Number(setup.first) === 1 ? 1 : 0;
   const r = Engine.createGame({ config, decks: [d0.cards, d1.cards], seed, firstPlayer: first });
   state = r.state;
-  screen = 'play';
   logLines = [];
+  hitFx = [false, false];
   resetUI();
   pushLog(r.events);
   render();
@@ -842,6 +908,7 @@ function choiceHTML() {
 }
 
 function act(action) {
+  if (online()) { netAct(action); return true; }
   const r = Engine.apply(state, action, DB);
   if (!r.ok) { toast(r.error); return false; }
   state = r.state;
@@ -855,14 +922,20 @@ function act(action) {
 
 // ---------- ログ ----------
 const nm = no => DB[no] ? DB[no].name : '?';
-const pn = p => `<span class="p${p}">${PNAME[p]}</span>`;
-function pushLog(events) {
+let pn = p => `<span class="p${col(p)}">${PNAME[p]}</span>`;
+// lines: 書き込む先(オンラインの盤面を裏で更新するときに使う)
+function pushLog(events, lines = logLines, names = PNAME, colorOf = col) {
+  const savePn = pn;
+  pn = p => `<span class="p${colorOf(p)}">${names[p]}</span>`;
+  try { pushLogInner(events, lines); } finally { pn = savePn; }
+}
+function pushLogInner(events, logLines) {
   for (const e of events) {
     let t = null;
     switch (e.type) {
       case 'gameStart': t = `対戦開始。先攻は ${pn(e.firstPlayer)}`; break;
       case 'turnStart': t = `<span class="t">ターン${e.turn}</span> ${pn(e.player)} の番`; break;
-      case 'draw': if (!e.setup) t = `${pn(e.player)} がドロー`; break;
+      case 'draw': if (!e.setup) t = `${pn(e.player)} がドロー${e.no != null && e.mine ? `(${esc(nm(e.no))})` : ''}`; break;
       case 'deckEmpty': t = `${pn(e.player)} の山札が尽きた!`; break;
       case 'summon': t = `${pn(e.player)} が <b>${nm(e.no)}</b> を${e.special ? '特殊' : ''}召喚${e.tributes ? `(生け贄${e.tributes}枚)` : ''}`; break;
       case 'stack': t = `${pn(e.player)} が <b>${nm(e.no)}</b> を${e.special ? '特殊召喚して' : ''}重ねた → ${e.count}枚重ね${e.tributes ? `(生け贄${e.tributes}枚)` : ''}`; break;
@@ -870,7 +943,7 @@ function pushLog(events) {
       case 'cast': t = `${pn(e.player)} が${KIND_LABEL[e.kind]}「<b class="spell-name">${esc(nm(e.id))}</b>」→ ${esc(e.label)}`; break;
       case 'fieldGone': t = `フィールド「${esc(nm(e.id))}」は墓地へ`; break;
       case 'buff': t = `　${nm(e.no)} の攻撃力 ×${e.atk}${e.def !== 1 ? ` / 防御力 ×${e.def}` : ''}`; break;
-      case 'search': t = `　${pn(e.player)} が「${esc(nm(e.id))}」を手札に加えた`; break;
+      case 'search': t = e.id == null ? `　${pn(e.player)} がマジックを1枚手札に加えた` : `　${pn(e.player)} が「${esc(nm(e.id))}」を手札に加えた`; break;
       case 'barrier': t = `　${pn(e.player)} は次の攻撃を無効にできる(残り${e.count}回)`; break;
       case 'negated': t = `<b>${pn(e.player)} が攻撃を無効にした!</b>`; break;
       case 'extraAttack': t = `　${nm(e.no)} はもう1回攻撃できる`; break;
@@ -931,7 +1004,8 @@ function previewHTML(attUnit, tgtUnit) {
 
 function sideHTML(p) {
   const pl = state.players[p];
-  const me = state.active === p && state.phase !== 'over';
+  const mine = !online() || p === net.me; // この端末で動かせる側
+  const me = state.active === p && state.phase !== 'over' && mine;
   const op = 1 - p;
   // 場
   const field = pl.field.map(u => {
@@ -950,10 +1024,11 @@ function sideHTML(p) {
     return cardHTML(st, ex);
   }).join('');
   // 手札
-  const interrupting = ui.interrupt === p && !me;
-  const showHand = me || interrupting || showAllHands || state.phase === 'over';
+  // オンラインでは相手の番に自分の手札のマジックをそのまま使える(割り込みボタン不要)
+  const interrupting = online() ? (mine && state.active !== p && state.phase !== 'over') : (ui.interrupt === p && !me);
+  const showHand = online() ? mine : (me || interrupting || showAllHands || state.phase === 'over');
   const hand = pl.hand.map(uid => {
-    if (!showHand) return `<div class="card back"></div>`;
+    if (!showHand || state.cards[uid] == null) return `<div class="card back"></div>`;
     const id = state.cards[uid];
     const ex = { attrs: `data-hand="${uid}" data-owner="${p}"` };
     if (state.phase !== 'over' && isSpell(id) && (me || interrupting)) {
@@ -967,11 +1042,13 @@ function sideHTML(p) {
   }).join('');
   const left = Engine.magicLeft(state, p);
   const magicInfo = left == null ? 'マジック 上限なし' : `マジック 残り${left}枚`;
-  const interruptBtn = !me && state.phase !== 'over'
+  const interruptBtn = !online() && !me && state.phase !== 'over'
     ? `<button class="interrupt ${interrupting ? 'on' : ''}" data-act="interrupt" data-p="${p}">${interrupting ? '割り込みをやめる' : '割り込みでマジックを使う'}</button>` : '';
-  return `<section class="side p${p} ${me ? 'active' : ''}">
+  const turnMark = state.active === p && state.phase !== 'over';
+  const onlineBadge = online() && !mine ? (net.presence[p] === false ? '<span class="badge off">切断中</span>' : '') : '';
+  return `<section class="side p${col(p)} ${turnMark ? 'active' : ''}">
     <div class="info">
-      <span class="pname">${PNAME[p]}${me ? ' ◀ 手番' : ''}</span>
+      <span class="pname">${PNAME[p]}${turnMark ? ' ◀ 手番' : ''}</span>${onlineBadge}
       <span>ライフ <span class="life num ${hitFx[p] ? 'hit' : ''}">${fmt(pl.life)}</span></span>
       ${pl.barrier ? `<span class="badge">攻撃無効 ×${pl.barrier}</span>` : ''}
       <span class="meta">デッキ「${esc(deckNames[p])}」 / 山札 ${pl.deck.length} / 墓地 ${pl.grave.length} / 召喚 ${pl.summonsUsed}/${state.config.summonsPerTurn} / ${magicInfo}</span>
@@ -986,6 +1063,8 @@ function sideHTML(p) {
 
 function hintText() {
   if (state.phase === 'over') return '';
+  if (online() && net.busy) return '送信中…';
+  if (online() && state.active !== net.me) return '相手の番です。手札のマジックは割り込みで使えます';
   if (ui.mode === 'tribute') {
     const c = Engine.describeCombos(ui.combos);
     return `生け贄にする県を場から選んでください(${c})`;
@@ -1003,14 +1082,19 @@ function hintText() {
 function fieldBoxHTML() {
   if (!state.field) return `<div class="fieldbox empty">フィールド: なし</div>`;
   const def = DB[state.cards[state.field.uid]];
-  return `<div class="fieldbox"><div>フィールド: <b>${esc(def.name)}</b> <span class="p${state.field.owner}">(${PNAME[state.field.owner]})</span></div><div class="meta">${esc(def.text)}</div></div>`;
+  return `<div class="fieldbox"><div>フィールド: <b>${esc(def.name)}</b> <span class="p${col(state.field.owner)}">(${PNAME[state.field.owner]})</span></div><div class="meta">${esc(def.text)}</div></div>`;
 }
 function ctrlHTML() {
   const p = state.active;
   const over = state.phase === 'over';
+  const waiting = online() && p !== net.me; // 相手の番
   let btns = '';
   if (over) {
-    btns = `<button class="primary" data-act="again">もう一度(同じデッキ)</button><button data-act="new">デッキを選んで新しいゲーム</button>`;
+    btns = online()
+      ? `<button class="primary" data-act="netRematch">もう一度(デッキを選ぶ)</button><button data-act="netLeave">部屋を出る</button>`
+      : `<button class="primary" data-act="again">もう一度(同じデッキ)</button><button data-act="new">デッキを選んで新しいゲーム</button>`;
+  } else if (waiting) {
+    btns = '';
   } else if (ui.mode === 'tribute') {
     const lvs = ui.tributes.map(id => DB[state.cards[Engine.findUnit(state, p, id).cards[0]]].level);
     const ok = ui.combos.some(c => c.length === lvs.length && c.slice().sort().join() === lvs.slice().sort().join());
@@ -1023,7 +1107,10 @@ function ctrlHTML() {
     btns = `${state.phase === 'main' ? '<button data-act="toBattle">バトルフェイズへ</button>' : ''}
             <button class="primary" data-act="endTurn">ターン終了</button>`;
   }
+  if (online() && net.busy) btns = btns.replace(/<button/g, '<button disabled');
+  const concedeLabel = online() ? '降参する' : `${PNAME[p]} が降参`;
   return `<div class="ctrl">
+    ${online() ? `<div class="meta">合言葉「${esc(net.phrase)}」${EMU ? ' <span class="test-tag" style="display:inline">エミュレータ</span>' : ''}</div>` : ''}
     <div class="turn">${over ? `${PNAME[state.winner]} の勝ち!` : `ターン${state.turn}: ${PNAME[p]}`}</div>
     <div class="phase">
       <span class="${state.phase === 'main' ? 'on' : ''}">メイン(召喚)</span>
@@ -1032,7 +1119,7 @@ function ctrlHTML() {
     <div class="hint">${hintText()}</div>
     <div class="btns">${btns}</div>
     ${fieldBoxHTML()}
-    ${over ? '' : `<div style="margin-top:8px"><button class="danger" data-act="concede" style="width:100%;font-size:12px">${PNAME[p]} が降参</button></div>`}
+    ${over ? '' : `<div style="margin-top:8px"><button class="danger" data-act="concede" style="width:100%;font-size:12px">${concedeLabel}</button></div>`}
   </div>`;
 }
 
@@ -1040,11 +1127,13 @@ function render() {
   const app = document.getElementById('app');
   const keep = {};
   app.querySelectorAll('[data-keep-scroll]').forEach(el => keep[el.dataset.keepScroll] = el.scrollTop);
-  const playView = `
+  const bottom = online() ? net.me : 0; // 下に出すのは自分
+  const inGame = screen === 'play' || (online() && net.view === 'game' && state);
+  const playView = !inGame ? '' : `
     <div class="board">
       <div>
-        ${sideHTML(1)}
-        ${sideHTML(0)}
+        ${sideHTML(1 - bottom)}
+        ${sideHTML(bottom)}
       </div>
       <aside>
         ${ctrlHTML()}
@@ -1057,17 +1146,18 @@ function render() {
       <nav class="tabs">
         <button class="${screen === 'play' ? 'on' : ''}" data-act="tabPlay">対戦</button>
         <button class="${screen === 'deck' ? 'on' : ''}" data-act="tabDeck">デッキ構築</button>
+        <button class="${screen === 'online' ? 'on' : ''}" data-act="tabOnline">オンライン対戦</button>
       </nav>
-      <button data-act="new">新しいゲーム</button>
+      ${screen === 'online' ? '' : '<button data-act="new">新しいゲーム</button>'}
       <button data-act="settings">設定</button>
       <span class="spacer"></span>
       ${screen === 'play' ? `<label class="test-tag"><input type="checkbox" data-act="showAll" ${showAllHands ? 'checked' : ''}>テスト: 両方の手札を表示</label>` : ''}
     </header>
-    ${screen === 'deck' ? deckScreenHTML() : playView}
+    ${screen === 'deck' ? deckScreenHTML() : screen === 'online' && !inGame ? onlineHTML() : playView}
     ${modal === 'settings' ? settingsHTML() : ''}
     ${modal === 'newgame' ? newGameHTML() : ''}
     ${modal === 'choice' && ui.choice ? choiceHTML() : ''}
-    ${screen === 'play' && state.phase === 'over' && !modal ? overHTML() : ''}`;
+    ${inGame && state.phase === 'over' && !modal ? overHTML() : ''}`;
   const log = document.getElementById('log');
   if (log) log.scrollTop = log.scrollHeight;
   app.querySelectorAll('[data-keep-scroll]').forEach(el => { if (keep[el.dataset.keepScroll] != null) el.scrollTop = keep[el.dataset.keepScroll]; });
@@ -1236,9 +1326,11 @@ function overHTML() {
   if (overClosed) return '';
   const reason = ({ life: 'ライフが0になった', deckout: '山札が尽きた', concede: '降参', sevenCities: '負け(七大都市がそろった)' })[state.endReason];
   return `<div class="modal-bg" data-act="closeOver"><div class="modal over">
-    <h2><span class="p${state.winner}" style="color:var(${state.winner ? '--op' : '--me'})">${PNAME[state.winner]}</span> の勝ち!</h2>
+    <h2><span class="p${col(state.winner)}" style="color:var(${col(state.winner) ? '--op' : '--me'})">${PNAME[state.winner]}</span> の勝ち!</h2>
     <p class="meta" style="text-align:center">${PNAME[1 - state.winner]} の${reason}(ターン${state.turn})</p>
-    <div class="foot" style="justify-content:center"><button class="primary" data-act="again">もう一度(同じデッキ)</button><button data-act="new">デッキを選ぶ</button><button data-act="closeOverBtn">盤面を見る</button></div>
+    <div class="foot" style="justify-content:center">${online()
+      ? '<button class="primary" data-act="netRematch">もう一度(デッキを選ぶ)</button><button data-act="netLeave">部屋を出る</button>'
+      : '<button class="primary" data-act="again">もう一度(同じデッキ)</button><button data-act="new">デッキを選ぶ</button>'}<button data-act="closeOverBtn">盤面を見る</button></div>
   </div></div>`;
 }
 let overClosed = false;
@@ -1280,14 +1372,16 @@ function settingsHTML() {
   }).join('');
   return `<div class="modal-bg"><div class="modal">
     <h2>設定(ルール調整)</h2>
-    <p class="meta">変更は「保存して新しいゲーム」で反映されます。この端末に保存されます。</p>
+    <p class="meta">${screen === 'online'
+      ? 'オンライン対戦では、部屋を作った人(ホスト)の設定が使われます。ホストが保存すると、次の対戦から反映されます。'
+      : '変更は「保存して新しいゲーム」で反映されます。'}この端末に保存されます。</p>
     ${rows}
     <div class="err">${esc(settingsError)}</div>
     <div class="foot">
       <button data-act="resetCfg">初期値に戻す</button>
       <span class="spacer"></span>
       <button data-act="closeSettings">閉じる</button>
-      <button class="primary" data-act="saveCfg">保存して新しいゲーム</button>
+      <button class="primary" data-act="saveCfg">${screen === 'online' ? '保存' : '保存して新しいゲーム'}</button>
     </div>
   </div></div>`;
 }
@@ -1342,8 +1436,15 @@ document.addEventListener('click', e => {
         const on = ui.interrupt === q;
         resetUI(); ui.interrupt = on ? null : q; render(); return;
       }
-      case 'tabPlay': screen = 'play'; render(); window.scrollTo(0, 0); return;
-      case 'tabDeck': screen = 'deck'; render(); window.scrollTo(0, 0); return;
+      case 'tabPlay': if (!slots.play && screen !== 'play') { newGame(); } else setScreen('play'); render(); window.scrollTo(0, 0); return;
+      case 'tabDeck': setScreen('deck'); render(); window.scrollTo(0, 0); return;
+      case 'tabOnline': setScreen('online'); render(); window.scrollTo(0, 0); return;
+      case 'netEnter': netEnter(); return;
+      case 'netReady': netReady(); return;
+      case 'netUnready': netUnready(); return;
+      case 'netLeave': netLeave(); return;
+      case 'netRematch': net.view = 'room'; overClosed = false; render(); return;
+      case 'netToGame': net.view = 'game'; render(); return;
       case 'deckNew': newDeck(); render(); return;
       case 'deckDup': { const d = curDeck(); newDeck(d.cards.slice(), `${d.name}のコピー`); render(); return; }
       case 'deckClear': curDeck().cards = []; persistDecks(); render(); return;
@@ -1360,26 +1461,38 @@ document.addEventListener('click', e => {
       case 'closeSettings': modal = null; render(); return;
       case 'resetCfg': config = Engine.mergeConfig(Engine.DEFAULT_CONFIG); settingsError = ''; render(); return;
       case 'saveCfg':
-        try { config = readSettings(); saveConfig(config); modal = null; overClosed = false; newGame(); }
+        try {
+          config = readSettings(); saveConfig(config); modal = null;
+          if (screen === 'online') { netPushConfig(); render(); return; } // 部屋のルールに反映(ホストのみ)
+          overClosed = false; newGame();
+        }
         catch (err) { settingsError = err.message; render(); }
         return;
       case 'closeOver': case 'closeOverBtn': overClosed = true; render(); return;
       case 'cancel': resetUI(); render(); return;
       case 'toBattle': act({ type: 'toBattle', player: state.active }); return;
       case 'endTurn': act({ type: 'endTurn', player: state.active }); return;
-      case 'concede': act({ type: 'concede', player: state.active }); return;
+      case 'concede':
+        if (online()) {
+          if (!net.concedeArm) { net.concedeArm = true; toast('もう一度押すと降参します'); setTimeout(() => { if (net) net.concedeArm = false; }, 3000); return; }
+          net.concedeArm = false; act({ type: 'concede', player: net.me }); return;
+        }
+        act({ type: 'concede', player: state.active }); return;
       case 'direct': act({ type: 'attack', player: state.active, attackerId: ui.attackerId, targetId: null }); return;
       case 'doSummon': act({ type: 'summon', player: state.active, handUid: ui.handUid, tributes: ui.tributes }); return;
     }
     return;
   }
   if (!state || state.phase === 'over') return;
+  if (screen === 'deck') return;
   const p = state.active;
+  if (online() && net.busy) return;
   if (t.dataset.hand) {
     const owner = Number(t.dataset.owner);
     const uid = t.dataset.hand;
+    if (online() && owner !== net.me) return;
     if (isSpell(state.cards[uid])) {
-      if (owner === p || ui.interrupt === owner) castFlow(owner, uid);
+      if (owner === p || ui.interrupt === owner || online()) castFlow(owner, uid);
       return;
     }
     if (owner !== p || state.phase !== 'main') return;
@@ -1392,6 +1505,7 @@ document.addEventListener('click', e => {
   }
   if (t.dataset.unit) {
     const owner = Number(t.dataset.owner), id = t.dataset.unit;
+    if (online() && p !== net.me) return;
     if (owner === p && ui.mode === 'tribute') {
       ui.tributes = ui.tributes.includes(id) ? ui.tributes.filter(x => x !== id) : [...ui.tributes, id];
       render();
@@ -1414,6 +1528,7 @@ document.addEventListener('change', e => {
   if (k) { const el = document.querySelector(`[data-set="${k}"]`); el.disabled = e.target.checked; if (!e.target.checked && !el.value) el.value = '2'; }
   const ds = e.target.dataset || {};
   if (ds.setup != null) { if (ds.setup === 'first') setup.first = e.target.value; else setup.decks[Number(ds.setup)] = e.target.value; }
+  if (ds.netdeck != null) { setup.online = e.target.value; saveJSON(SETUP_KEY, setup); render(); }
   if (ds.filter && ds.filter !== 'q') { filt[ds.filter] = e.target.value; render(); }
   if (ds.deckpick != null) { editId = e.target.value; deleteArm = false; render(); }
 });
@@ -1424,6 +1539,7 @@ document.addEventListener('input', e => {
     document.getElementById('pool').innerHTML = poolHTML();
     document.getElementById('pool-count').textContent = `${filteredCards().length}種類`;
   }
+  if (ds.phrase != null) netPhrase = e.target.value;
   if (ds.deckname != null) {
     const d = curDeck(); if (!d) return;
     d.name = e.target.value.trim() || '名前なし';
@@ -1431,6 +1547,364 @@ document.addEventListener('input', e => {
     const opt = document.querySelector(`[data-deckpick] option[value="${d.id}"]`);
     if (opt) opt.textContent = d.name;
   }
+});
+
+// ========== オンライン対戦(フェーズ5) ==========
+// 部屋の鍵 = 合言葉の SHA-256。公開の盤面は rooms/{鍵}/pub、
+// 自分のカードの中身(uid → カード)は secrets/{鍵}/{自分のuid} に置き、Security Rules で本人しか読めない
+const EMU = new URLSearchParams(location.search).has('emu'); // [TEST] ローカルの Firebase エミュレータにつなぐ
+const FIREBASE_CONFIG = null; // 本番の Firebase の設定(まだ作っていない)
+const FB_VER = '10.12.2';
+const NET_KEY = 'pref47.net.v1';    // sessionStorage: 再読み込みで同じ部屋に戻る
+const STALE_MS = 6 * 3600 * 1000;   // これより古い部屋は、同じ合言葉で作り直せる
+const RECENT_MAX = 40;              // 盤面と一緒に送る直近のログ
+let fb = null, fbLoading = null;
+let netPhrase = '';
+let netMsg = '';
+let netEntering = false;
+
+const cryptoInt = () => crypto.getRandomValues(new Uint32Array(1))[0] | 0;
+function cryptoShuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = crypto.getRandomValues(new Uint32Array(1))[0] % (i + 1);
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function fbInit() {
+  if (fb) return Promise.resolve(fb);
+  if (fbLoading) return fbLoading;
+  fbLoading = (async () => {
+    const cfg = EMU
+      ? { apiKey: 'demo-key', projectId: 'demo-pref47', databaseURL: 'http://127.0.0.1:9000?ns=demo-pref47-default-rtdb' } // [TEST]
+      : FIREBASE_CONFIG;
+    if (!cfg) throw new Error('オンライン対戦はまだ準備中です(サーバー未設定)');
+    const base = `https://www.gstatic.com/firebasejs/${FB_VER}/`;
+    const [A, U, D] = await Promise.all(['app', 'auth', 'database'].map(n => import(base + `firebase-${n}.js`)));
+    const app = A.initializeApp(cfg);
+    const auth = U.getAuth(app);
+    if (EMU) U.connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true }); // [TEST]
+    const db = D.getDatabase(app);
+    if (EMU) D.connectDatabaseEmulator(db, '127.0.0.1', 9000); // [TEST]
+    await U.setPersistence(auth, U.browserSessionPersistence); // タブごとに別の人(再読み込みでは同じ人のまま)
+    await auth.authStateReady();
+    if (!auth.currentUser) await U.signInAnonymously(auth);
+    fb = { D, db, uid: auth.currentUser.uid, ref: p => D.ref(db, p) };
+    return fb;
+  })();
+  fbLoading.catch(() => { fbLoading = null; });
+  return fbLoading;
+}
+
+async function roomKey(phrase) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('pref47:' + phrase.toLowerCase()));
+  return [...new Uint8Array(buf)].slice(0, 10).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+const normPhrase = t => String(t || '').normalize('NFKC').replace(/\s+/g, ' ').trim();
+const roomPath = sub => `rooms/${net.key}${sub ? '/' + sub : ''}`;
+const roomConfig = () => Engine.mergeConfig(Engine.DEFAULT_CONFIG, net && net.meta && net.meta.config ? JSON.parse(net.meta.config) : config);
+const nextGameNo = () => (net.pub ? net.pub.game : 0) + 1;
+const isHost = () => net && net.seat === 0;
+
+// 合言葉で入る: 部屋がなければ作る(ホスト)、1人いれば入る(ゲスト)、自分の部屋なら戻る
+async function netEnter(phraseArg) {
+  const phrase = normPhrase(phraseArg != null ? phraseArg : netPhrase);
+  if (!phrase) { netMsg = '合言葉を入れてください'; render(); return; }
+  if (phrase.length > 30) { netMsg = '合言葉は30文字までにしてください'; render(); return; }
+  if (netEntering) return;
+  netEntering = true; netMsg = 'つないでいます…'; render();
+  try {
+    const f = await fbInit();
+    const D = f.D;
+    const key = await roomKey(phrase);
+    let seat = null;
+    for (let tries = 0; tries < 2 && seat == null; tries++) {
+      const meta = (await D.get(f.ref(`rooms/${key}/meta`))).val();
+      try {
+        if (!meta || !(meta.created > Date.now() - STALE_MS)) {
+          await D.set(f.ref(`rooms/${key}`), { meta: { host: f.uid, created: D.serverTimestamp(), config: JSON.stringify(config) } });
+          seat = 0;
+        } else if (meta.host === f.uid) seat = 0;
+        else if (meta.guest === f.uid) seat = 1;
+        else if (!meta.guest) { await D.set(f.ref(`rooms/${key}/meta/guest`), f.uid); seat = 1; }
+        else throw new Error('この合言葉の部屋は満員です。別の合言葉にしてください');
+      } catch (e) {
+        if (tries || /満員/.test(e.message)) throw /permission/i.test(e.message) ? new Error('この合言葉の部屋には入れませんでした(満員か、作り直し中です)') : e;
+      }
+    }
+    try { sessionStorage.setItem(NET_KEY, JSON.stringify({ phrase })); } catch (e) {}
+    netOpen(phrase, key, seat);
+    netMsg = '';
+  } catch (e) {
+    netMsg = e.message || String(e);
+  }
+  netEntering = false;
+  render();
+}
+
+function netOpen(phrase, key, seat) {
+  netClose();
+  const f = fb, D = f.D;
+  net = {
+    phrase, key, seat, me: seat,
+    names: seat === 0 ? ['あなた', '相手'] : ['相手', 'あなた'],
+    meta: null, ready: {}, pub: null, presence: {}, secret: null,
+    view: 'room', busy: false, starting: false, lastVer: 0, game: 0, unsub: [], concedeArm: false,
+  };
+  slots.online = { state: null, logLines: [], deckNames: ['', ''], hitFx: [false, false] };
+  if (screen === 'online') setScreen('online');
+  const mine = net;
+  const on = (sub, fn) => net.unsub.push(D.onValue(f.ref(roomPath(sub)),
+    s => { if (net === mine) fn(s.val()); },
+    err => { if (net === mine) { netMsg = '部屋の情報を読めませんでした: ' + err.message; render(); } }));
+  on('meta', v => {
+    if (!v || (v.host !== f.uid && v.guest !== f.uid)) { netKicked(v ? '部屋から外れました' : '部屋がなくなりました(ホストが部屋を出ました)'); return; }
+    net.meta = v;
+    render();
+  });
+  on('ready', v => { net.ready = v || {}; netMaybeStart(); render(); });
+  on('presence', v => { net.presence = v || {}; render(); });
+  on('pub', v => { netOnPub(v); });
+  // 接続中かどうか(切れたら false)
+  const pres = f.ref(roomPath('presence/' + seat));
+  net.presRef = pres;
+  net.unsub.push(D.onValue(f.ref('.info/connected'), s => {
+    if (s.val() === true && net === mine) { D.onDisconnect(pres).set(false).catch(() => {}); D.set(pres, true).catch(() => {}); }
+  }));
+}
+
+function netClose() {
+  if (!net) return;
+  for (const u of net.unsub) { try { u(); } catch (e) {} }
+  if (net.presRef) { fb.D.onDisconnect(net.presRef).cancel().catch(() => {}); }
+  net = null;
+  if (screen === 'online') PNAME = LOCAL_NAMES;
+}
+function netKicked(msg) {
+  netClose();
+  try { sessionStorage.removeItem(NET_KEY); } catch (e) {}
+  slots.online = { state: null, logLines: [], deckNames: ['', ''], hitFx: [false, false] };
+  if (screen === 'online') setScreen('online');
+  netMsg = msg;
+  modal = null;
+  render();
+}
+
+async function netLeave() {
+  if (!net) return;
+  const n = net, f = fb, D = f.D;
+  if (n.pub && slots.online.state && slots.online.state.phase !== 'over' && n.secret && n.secret.game === n.pub.game) {
+    await netAct({ type: 'concede', player: n.me }); // 対戦中に出たら降参
+  }
+  netClose();
+  try { sessionStorage.removeItem(NET_KEY); } catch (e) {}
+  try {
+    await D.remove(f.ref(`secrets/${n.key}/${f.uid}`));
+    if (n.seat === 0) await D.remove(f.ref(`rooms/${n.key}`));
+    else {
+      await D.remove(f.ref(`rooms/${n.key}/ready/1`));
+      await D.remove(f.ref(`rooms/${n.key}/presence/1`));
+      await D.remove(f.ref(`rooms/${n.key}/meta/guest`));
+    }
+  } catch (e) {}
+  slots.online = { state: null, logLines: [], deckNames: ['', ''], hitFx: [false, false] };
+  if (screen === 'online') setScreen('online');
+  netMsg = '部屋を出ました';
+  overClosed = false;
+  render();
+}
+
+// 自分のデッキを混ぜて秘密の場所に置き、準備OKを出す
+async function netReady() {
+  if (!net || !net.meta) return;
+  const cfgR = roomConfig();
+  const choice = setup.online || 'random';
+  let cards, name;
+  if (choice === 'random') { cards = Engine.randomDeck(PREFS, cfgR, cryptoInt()); name = 'ランダム'; }
+  else {
+    const d = decks.find(x => x.id === choice);
+    if (!d) { toast('デッキが見つかりません'); return; }
+    const errs = Engine.validateDeck(d.cards, DB, cfgR);
+    if (errs.length) { toast('この部屋のルールでは使えません: ' + errs[0]); return; }
+    cards = d.cards.slice(); name = d.name;
+  }
+  cryptoShuffle(cards);
+  const game = nextGameNo();
+  const pre = Engine.HIDDEN_PREFIX[net.me];
+  const map = {};
+  cards.forEach((no, i) => { map[pre + (i + 1)] = no; });
+  const f = fb, D = f.D;
+  try {
+    await D.set(f.ref(`secrets/${net.key}/${f.uid}`), { game, cards: JSON.stringify(map) });
+    await D.set(f.ref(roomPath('ready/' + net.seat)), { game, deckSize: cards.length, deckName: name.slice(0, 40) });
+    net.myDeckName = name;
+  } catch (e) { toast('準備OKを送れませんでした: ' + e.message); }
+}
+async function netUnready() {
+  if (!net) return;
+  try { await fb.D.remove(fb.ref(roomPath('ready/' + net.seat))); } catch (e) { toast(e.message); }
+}
+// ホストが設定を変えたら部屋のルールを書き換え、両者の準備OKを取り消す
+async function netPushConfig() {
+  if (!net) return;
+  if (!isHost()) { toast('部屋のルールはホストの設定が使われます'); return; }
+  const D = fb.D;
+  try {
+    await D.set(fb.ref(roomPath('meta/config')), JSON.stringify(config));
+    await D.remove(fb.ref(roomPath('ready')));
+    toast('部屋のルールを変えました。準備OKを押し直してください');
+  } catch (e) { toast('ルールを送れませんでした: ' + e.message); }
+}
+
+// 両者が準備OKなら、ホストが対戦を始める(盤面は uid の並びだけ。中身は各自の秘密)
+async function netMaybeStart() {
+  if (!isHost() || net.starting || !net.meta) return;
+  const g = nextGameNo();
+  const r0 = net.ready[0], r1 = net.ready[1];
+  if (!r0 || !r1 || r0.game !== g || r1.game !== g) return;
+  const cfgR = roomConfig();
+  if (r0.deckSize !== cfgR.deckSize || r1.deckSize !== cfgR.deckSize) return;
+  net.starting = true;
+  const n = net;
+  try {
+    const c = Engine.createGame({ config: cfgR, hiddenDecks: [r0.deckSize, r1.deckSize], seed: cryptoInt(), firstPlayer: cryptoInt() & 1 });
+    const json = JSON.stringify({ state: Engine.publicState(c.state), recent: [{ ver: 1, by: 0, ev: Engine.publicEvents(c.state, c.events) }] });
+    await fb.D.runTransaction(fb.ref(roomPath('pub')), cur => {
+      if (cur && cur.game >= g) return; // もう始まっている
+      return { game: g, ver: 1, json };
+    }, { applyLocally: false });
+  } catch (e) { netMsg = '対戦を始められませんでした: ' + e.message; render(); }
+  n.starting = false;
+}
+
+// 公開の盤面が届いた: 自分の秘密と合わせて表示用の state を作る
+async function netOnPub(v) {
+  const n = net;
+  n.pub = v;
+  if (!v) { render(); return; }
+  if (!n.secret || n.secret.game !== v.game) {
+    let s = null;
+    try { s = (await fb.D.get(fb.ref(`secrets/${n.key}/${fb.uid}`))).val(); } catch (e) {}
+    if (net !== n || n.pub !== v) return; // 待っている間に次が届いた
+    if (!s || s.game !== v.game) { netMsg = '自分のデッキの情報が見つかりません(この対戦には参加していません)'; render(); return; }
+    n.secret = { game: s.game, cards: JSON.parse(s.cards) };
+  }
+  const data = JSON.parse(v.json);
+  const slot = slots.online;
+  if (n.game !== v.game) {
+    n.game = v.game; n.lastVer = 0;
+    slot.logLines = [];
+    n.view = 'game';
+    overClosed = false;
+    const r = n.ready || {};
+    slot.deckNames = [0, 1].map(p => p === n.me ? ((r[p] && r[p].deckName) || n.myDeckName || '') : '(非公開)');
+  }
+  const fresh = data.recent.filter(r => r.ver > n.lastVer);
+  slot.hitFx = [false, false];
+  let fromOpp = false;
+  for (const r of fresh) {
+    if (r.by !== n.me) fromOpp = true;
+    // 自分が引いた札・加えた札は、自分のログにだけ名前を出す
+    const ev = r.ev.map(e => {
+      if (e.player !== n.me || !e.uid || n.secret.cards[e.uid] == null) return e;
+      if (e.type === 'draw') return Object.assign({}, e, { no: n.secret.cards[e.uid], mine: true });
+      if (e.type === 'search') return Object.assign({}, e, { id: n.secret.cards[e.uid] });
+      return e;
+    });
+    pushLog(ev, slot.logLines, n.names, p => p === n.me ? 0 : 1);
+    if (n.lastVer) for (const e of ev) if (e.type === 'damage') slot.hitFx[e.player] = true;
+  }
+  n.lastVer = v.ver;
+  slot.state = Engine.withSecret(data.state, n.secret.cards);
+  if (screen === 'online') {
+    ({ state, logLines, deckNames, hitFx } = slot);
+    if (fromOpp && ui.mode) resetUI(); // 相手の割り込みで盤面が変わったら選び直し
+    if (fromOpp && modal === 'choice') { modal = null; ui.choice = null; }
+  }
+  render();
+}
+
+// 操作を送る。盤面の更新は transaction で1つずつ(割り込みとぶつかったらやり直し)
+async function netAct(action) {
+  const n = net;
+  if (!n || n.busy || !n.secret) return;
+  n.busy = true; resetUI(); render();
+  let err = null;
+  try {
+    await fb.D.runTransaction(fb.ref(`rooms/${n.key}/pub`), cur => {
+      err = null;
+      if (cur == null) return cur;
+      if (cur.game !== n.secret.game) { err = '別の対戦が始まっています'; return; }
+      const data = JSON.parse(cur.json);
+      const r = Engine.apply(Engine.withSecret(data.state, n.secret.cards), action, DB);
+      if (!r.ok) { err = r.error; return; }
+      const ver = cur.ver + 1;
+      const recent = data.recent.concat([{ ver, by: n.me, ev: Engine.publicEvents(r.state, r.events) }]).slice(-RECENT_MAX);
+      return { game: cur.game, ver, json: JSON.stringify({ state: Engine.publicState(r.state), recent }) };
+    }, { applyLocally: false });
+    if (err) toast(err);
+  } catch (e) { toast('送信できませんでした: ' + e.message); }
+  n.busy = false;
+  render();
+}
+
+function onlineHTML() {
+  const noServer = !EMU && !FIREBASE_CONFIG;
+  if (!net) {
+    return `<div class="online">
+      <h2>オンライン対戦</h2>
+      <p class="meta">相手と同じ合言葉を入れると、同じ部屋に入れます。先に入った人がホストで、ホストの設定(ルール)で対戦します。</p>
+      ${noServer ? '<p class="err">オンライン対戦はまだ準備中です(サーバー未設定)。</p>' : ''}
+      <div class="row"><input type="text" data-phrase maxlength="30" placeholder="合言葉(例: うどん県)" value="${esc(netPhrase)}" ${noServer ? 'disabled' : ''}>
+      <button class="primary" data-act="netEnter" ${netEntering || noServer ? 'disabled' : ''}>入る</button></div>
+      <div class="${/出ました/.test(netMsg) || /つないで/.test(netMsg) ? 'meta' : 'err'}" style="margin-top:8px">${esc(netMsg)}</div>
+      ${EMU ? '<p class="test-tag" style="margin-top:12px">開発用: ローカルの Firebase エミュレータにつないでいます</p>' : ''}
+    </div>`;
+  }
+  const cfgR = roomConfig();
+  const g = nextGameNo();
+  const opp = 1 - net.me;
+  const joined = [!!(net.meta && net.meta.host), !!(net.meta && net.meta.guest)];
+  const rdy = p => { const r = net.ready[p]; return !!(r && r.game === g); };
+  const status = p => !joined[p] ? '<span class="meta">まだ来ていません</span>'
+    : net.presence[p] === false ? '<span class="badge off">切断中</span>'
+    : rdy(p) ? '<span class="badge">準備OK</span>' : '<span class="meta">デッキを選んでいます</span>';
+  const myReady = rdy(net.me);
+  const choice = setup.online || 'random';
+  const deckOpts = `<option value="random" ${choice === 'random' ? 'selected' : ''}>ランダム(${cfgR.deckSize}枚)</option>` + decks.map(d => {
+    const bad = Engine.validateDeck(d.cards, DB, cfgR).length > 0;
+    return `<option value="${d.id}" ${choice === d.id ? 'selected' : ''} ${bad ? 'disabled' : ''}>${esc(d.name)}${bad ? `(使えません ${d.cards.length}/${cfgR.deckSize}枚)` : ''}</option>`;
+  }).join('');
+  const lastOver = net.pub && slots.online.state && slots.online.state.phase === 'over';
+  const playing = net.pub && slots.online.state && slots.online.state.phase !== 'over';
+  const rule = (k, v) => `<div><span class="meta">${k}</span> <b class="num">${v}</b></div>`;
+  return `<div class="online">
+    <h2>部屋「${esc(net.phrase)}」</h2>
+    <p class="meta">相手に同じ合言葉を伝えてください。${EMU ? '<span class="test-tag" style="display:inline">エミュレータ</span>' : ''}</p>
+    <div class="seats">
+      <div class="seat p0"><b>あなた</b>(${net.seat === 0 ? 'ホスト' : 'ゲスト'}) ${status(net.me)}</div>
+      <div class="seat p1"><b>相手</b>(${net.seat === 0 ? 'ゲスト' : 'ホスト'}) ${status(opp)}</div>
+    </div>
+    <h3>ルール(ホストの設定)</h3>
+    <div class="rules">
+      ${rule('ライフ', fmt(cfgR.startLife))}${rule('デッキ', cfgR.deckSize + '枚')}${rule('同名', cfgR.maxCopies + '枚まで')}
+      ${rule('最初の手札', cfgR.startHand + '枚')}${rule('マジック', cfgR.magicLimit == null ? '上限なし' : `1ターン${cfgR.magicLimit}枚`)}${rule('召喚', `1ターン${cfgR.summonsPerTurn}回`)}
+    </div>
+    ${isHost() ? '<p class="meta">ルールは上の「設定」から変えられます。</p>' : ''}
+    ${playing ? `<div class="btns" style="margin-top:12px"><button class="primary" data-act="netToGame">対戦に戻る</button></div>` : `
+    <h3>デッキ</h3>
+    <div class="row"><select data-netdeck ${myReady ? 'disabled' : ''}>${deckOpts}</select>
+      ${myReady ? '<button data-act="netUnready">準備をやめる</button>' : `<button class="primary" data-act="netReady" ${joined[opp] ? '' : ''}>このデッキで準備OK</button>`}</div>
+    <p class="meta">${myReady ? (rdy(opp) ? '対戦を始めています…' : '相手の準備を待っています') : '両方が準備OKになると対戦が始まります。先攻はランダムです。'}</p>`}
+    ${lastOver ? '<div style="margin-top:8px"><button data-act="netToGame">前の対戦の盤面を見る</button></div>' : ''}
+    <div class="err">${esc(netMsg)}</div>
+    <div class="foot"><button class="danger" data-act="netLeave">部屋を出る</button></div>
+  </div>`;
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.dataset && e.target.dataset.phrase != null) { netPhrase = e.target.value; netEnter(); }
 });
 
 let toastTimer = null;
@@ -1444,7 +1918,12 @@ function toast(msg) {
 }
 
 newGame();
-window.__game = { get state() { return state; }, act, DB, Engine }; // [TEST] コンソールから触る用
+// 再読み込みしたら、さっきの部屋に戻る
+try {
+  const saved = JSON.parse(sessionStorage.getItem(NET_KEY) || 'null');
+  if (saved && saved.phrase) { setScreen('online'); netPhrase = saved.phrase; render(); netEnter(saved.phrase); }
+} catch (e) {}
+window.__game ={ get state() { return state; }, act, DB, Engine }; // [TEST] コンソールから触る用
 })();
 </script>
 </body>

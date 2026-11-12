@@ -344,5 +344,70 @@ for (let g = 0; g < 2000; g++) {
 ok(crash === 0, `ランダム対戦で例外 ${crash} 件`);
 console.log(`  決着: ライフ ${ends.life} / 山札切れ ${ends.deckout} / 七大都市 ${ends.sevenCities}、平均 ${(turns / 2000).toFixed(1)} ターン、マジック等 ${spellsCast} 回`);
 
+// ---- オンライン: 隠す情報 ----
+// 操作する側は「公開 state + 自分の秘密」しか持たない。それでも全部知っている場合と同じ結果になるか
+section('オンライン(手札・山札を隠す)');
+{
+  let hidOk = 0, hidNg = 0, leak = 0, hidGames = 0;
+  for (let g = 0; g < 300; g++) {
+    let rs = 5000 + g;
+    const R = () => { rs = (rs * 1103515245 + 12345) & 0x7fffffff; return rs / 0x7fffffff; };
+    const created = E.createGame({ hiddenDecks: [40, 40], seed: g, firstPlayer: g & 1 });
+    // 各自の秘密: uid → カード(各自で混ぜた順)
+    const secret = [0, 1].map(i => {
+      const d = E.randomDeck(PREFS, {}, g * 3 + i), m = {};
+      created.state.players[i].deck.forEach((u, k) => { m[u] = d[k]; });
+      return m;
+    });
+    let pub = E.publicState(created.state);
+    ok(Object.keys(pub.cards).length === 0 || g > 0, '開始時は何も公開されていない');
+    const full = () => E.withSecret(pub, Object.assign({}, secret[0], secret[1]));
+    const step = a => {
+      const mine = E.withSecret(pub, secret[a.player]);
+      const r1 = E.apply(mine, a, DB), r2 = E.apply(full(), a, DB);
+      if (r1.ok !== r2.ok) { hidNg++; return false; }
+      if (!r1.ok) return false;
+      const p1 = E.publicState(r1.state), p2 = E.publicState(r2.state);
+      if (JSON.stringify(p1) === JSON.stringify(p2)) hidOk++; else hidNg++;
+      // 公開 state・公開イベントに、手札・山札の中身が漏れていない
+      const hid = E.hiddenUids(p1);
+      if (Object.keys(p1.cards).some(u => hid.has(u))) leak++;
+      if (E.publicEvents(r1.state, r1.events).some(e => e.uid && hid.has(e.uid) && (e.no != null || e.id != null))) leak++;
+      pub = p1;
+      return true;
+    };
+    try {
+      for (let n = 0; n < 600 && pub.phase !== 'over'; n++) {
+        const p = pub.active, st = full();
+        const pl = st.players[p];
+        if (st.phase === 'main') {
+          const cands = pl.hand.map(h => ({ h, i: E.summonInfo(st, p, h, DB) })).filter(x => x.i.ok);
+          if (cands.length && R() < 0.9) {
+            const c = cands[Math.floor(R() * cands.length)];
+            const tr = [];
+            for (const lvN of c.i.combos[Math.floor(R() * c.i.combos.length)]) { const u2 = pl.field.find(f => !tr.includes(f.id) && DB[st.cards[f.cards[0]]].level === lvN); tr.push(u2.id); }
+            step({ type: 'summon', player: p, handUid: c.h, tributes: tr });
+            continue;
+          }
+          const q = R() < 0.3 ? 1 - p : p; // 割り込みも混ぜる
+          const cs = full().players[q].hand.map(h => ({ h, i: E.castInfo(full(), q, h, DB) })).filter(x => x.i.ok);
+          if (cs.length && R() < 0.4) { const c = cs[Math.floor(R() * cs.length)]; step({ type: 'cast', player: q, handUid: c.h, choice: c.i.options[Math.floor(R() * c.i.options.length)].choice }); continue; }
+          step({ type: 'toBattle', player: p });
+          continue;
+        }
+        const ready = pub.players[p].field.filter(u => !E.canAttackReason(pub, p, u));
+        if (ready.length && R() < 0.9) {
+          const opf = pub.players[1 - p].field;
+          step({ type: 'attack', player: p, attackerId: ready[0].id, targetId: opf.length ? opf[Math.floor(R() * opf.length)].id : null });
+        } else step({ type: 'endTurn', player: p });
+      }
+      hidGames++;
+    } catch (e) { hidNg++; if (hidNg < 3) console.log('  ', e.message); }
+  }
+  ok(hidNg === 0, `秘密なしでも同じ結果 (一致 ${hidOk} / 不一致 ${hidNg})`);
+  ok(leak === 0, `手札・山札の中身が公開側に漏れていない (漏れ ${leak})`);
+  console.log(`  ${hidGames}戦・${hidOk}操作で確認`);
+}
+
 console.log(`\n${fail ? 'NG' : 'OK'}: ${pass} 件成功 / ${fail} 件失敗`);
 process.exit(fail ? 1 : 0);
