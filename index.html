@@ -87,6 +87,35 @@ header.top h1{font-size:18px;margin:0 12px 0 0}
 .modal .foot{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
 .err{color:var(--op);font-size:12px}
 .over h2{font-size:26px;text-align:center}
+.tabs{display:flex;gap:4px;background:#0e1117;border-radius:10px;padding:3px;margin-right:6px}
+.tabs button{border:none;background:transparent;color:var(--sub);padding:6px 14px}
+.tabs button.on{background:var(--panel2);color:var(--text);box-shadow:0 0 0 1px var(--accent) inset}
+.deckscreen{display:grid;grid-template-columns:1fr 340px;gap:12px;align-items:start}
+@media (max-width:900px){.deckscreen{grid-template-columns:1fr}}
+.pool-panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+.filters input[type=search]{width:160px}
+.pool .card{padding-bottom:6px}
+.pool-foot span{white-space:nowrap}
+.pool-foot{display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:11px;color:#666}
+.pool-foot .in{color:#b3261e;font-weight:800}
+button.mini{padding:1px 8px;font-size:13px;border-radius:6px;margin-left:3px;background:#2b3140;color:#fff}
+.deck-panel{position:sticky;top:10px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;max-height:calc(100vh - 80px)}
+.deck-panel .row{display:flex;gap:6px}
+.deck-panel .btns{display:flex;flex-direction:column;gap:6px}
+.deck-count{font-size:15px}
+.deck-count b{font-size:28px;color:var(--warn)}
+.deck-count.done b{color:var(--ok)}
+.okmsg{color:var(--ok);font-size:12px;font-weight:700}
+.lv-bars div{display:grid;grid-template-columns:52px 1fr 28px;gap:6px;align-items:center;font-size:12px}
+.lv-bars span{color:var(--accent);font-size:11px}
+.lv-bars i{display:block;height:9px;border-radius:4px;min-width:2px}
+.lv-bars b{text-align:right}
+.lvbar1{background:var(--lv1)} .lvbar2{background:var(--lv2)} .lvbar3{background:var(--lv3)} .lvbar4{background:var(--lv4)}
+.deck-list{flex:1;min-height:80px;overflow:auto;background:#0e1117;border-radius:8px;padding:4px 6px}
+.dl-row{display:flex;justify-content:space-between;align-items:center;padding:3px 4px 3px 8px;border-bottom:1px solid #262b36;border-left:3px solid var(--lv1);font-size:13px}
+.dl-row small{color:var(--accent)}
+.dl-row.lvline2{border-left-color:var(--lv2)} .dl-row.lvline3{border-left-color:var(--lv3)} .dl-row.lvline4{border-left-color:var(--lv4)}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#2a1d1d;border:1px solid var(--op);color:#fff;padding:10px 16px;border-radius:10px;z-index:60;font-weight:700}
 </style>
 </head>
@@ -452,14 +481,38 @@ let state = null;
 let logLines = [];
 let ui = { mode: null, handUid: null, combos: [], tributes: [], attackerId: null };
 let showAllHands = false; // [TEST] 両方の手札を表示
-let modal = null;         // 'settings' | null
+let modal = null;         // 'settings' | 'newgame' | null
 let hitFx = [false, false];
+let screen = 'play';      // 'play' | 'deck'
+
+// ---------- 端末に保存するもの ----------
+const DECKS_KEY = 'pref47.decks.v1';
+const SETUP_KEY = 'pref47.setup.v1';
+function loadJSON(k, d) { try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return v == null ? d : v; } catch (e) { return d; } }
+function saveJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { toast('この端末に保存できませんでした'); } }
+let decks = loadJSON(DECKS_KEY, []).filter(d => d && Array.isArray(d.cards)); // [{id, name, cards:[県番号]}]
+let setup = Object.assign({ decks: ['random', 'random'], first: '0' }, loadJSON(SETUP_KEY, {}));
+let deckNames = ['ランダム', 'ランダム'];
+const deckErrors = d => Engine.validateDeck(d.cards, DB, config);
+
+function resolveDeck(choice, seed, p) {
+  if (choice !== 'random') {
+    const d = decks.find(x => x.id === choice);
+    if (d && !deckErrors(d).length) return { cards: d.cards.slice(), name: d.name };
+    toast(`${PNAME[p]} のデッキが使えないので、ランダムにしました`);
+  }
+  return { cards: Engine.randomDeck(PREFS, config, seed), name: 'ランダム' };
+}
 
 function newGame() {
   const seed = (Math.random() * 2 ** 31) | 0;
-  const decks = [Engine.randomDeck(PREFS, config, seed ^ 0x1234), Engine.randomDeck(PREFS, config, seed ^ 0x9876)];
-  const r = Engine.createGame({ config, decks, seed, firstPlayer: 0 });
+  const d0 = resolveDeck(setup.decks[0], seed ^ 0x1234, 0);
+  const d1 = resolveDeck(setup.decks[1], seed ^ 0x9876, 1);
+  deckNames = [d0.name, d1.name];
+  const first = setup.first === 'random' ? (seed & 1) : Number(setup.first) === 1 ? 1 : 0;
+  const r = Engine.createGame({ config, decks: [d0.cards, d1.cards], seed, firstPlayer: first });
   state = r.state;
+  screen = 'play';
   logLines = [];
   resetUI();
   pushLog(r.events);
@@ -567,7 +620,7 @@ function sideHTML(p) {
     <div class="info">
       <span class="pname">${PNAME[p]}${me ? ' ◀ 手番' : ''}</span>
       <span>ライフ <span class="life num ${hitFx[p] ? 'hit' : ''}">${fmt(pl.life)}</span></span>
-      <span class="meta">山札 ${pl.deck.length} / 墓地 ${pl.grave.length} / 召喚 ${pl.summonsUsed}/${state.config.summonsPerTurn}</span>
+      <span class="meta">デッキ「${esc(deckNames[p])}」 / 山札 ${pl.deck.length} / 墓地 ${pl.grave.length} / 召喚 ${pl.summonsUsed}/${state.config.summonsPerTurn}</span>
     </div>
     <div class="zone-label">場</div>
     <div class="zone ${pl.field.length ? '' : 'empty'}">${field}</div>
@@ -596,7 +649,7 @@ function ctrlHTML() {
   const over = state.phase === 'over';
   let btns = '';
   if (over) {
-    btns = `<button class="primary" data-act="new">もう一度</button>`;
+    btns = `<button class="primary" data-act="again">もう一度(同じデッキ)</button><button data-act="new">デッキを選んで新しいゲーム</button>`;
   } else if (ui.mode === 'tribute') {
     const lvs = ui.tributes.map(id => DB[state.cards[Engine.findUnit(state, p, id).cards[0]]].level);
     const ok = ui.combos.some(c => c.length === lvs.length && c.slice().sort().join() === lvs.slice().sort().join());
@@ -623,14 +676,9 @@ function ctrlHTML() {
 
 function render() {
   const app = document.getElementById('app');
-  app.innerHTML = `
-    <header class="top">
-      <h1>47都道府県カードバトル <small class="meta">試遊版</small></h1>
-      <button data-act="new">新しいゲーム</button>
-      <button data-act="settings">設定</button>
-      <span class="spacer"></span>
-      <label class="test-tag"><input type="checkbox" data-act="showAll" ${showAllHands ? 'checked' : ''}>テスト: 両方の手札を表示</label>
-    </header>
+  const keep = {};
+  app.querySelectorAll('[data-keep-scroll]').forEach(el => keep[el.dataset.keepScroll] = el.scrollTop);
+  const playView = `
     <div class="board">
       <div>
         ${sideHTML(1)}
@@ -640,11 +688,166 @@ function render() {
         ${ctrlHTML()}
         <div class="log" id="log">${logLines.map(l => `<div>${l}</div>`).join('')}</div>
       </aside>
-    </div>
+    </div>`;
+  app.innerHTML = `
+    <header class="top">
+      <h1>47都道府県カードバトル <small class="meta">試遊版</small></h1>
+      <nav class="tabs">
+        <button class="${screen === 'play' ? 'on' : ''}" data-act="tabPlay">対戦</button>
+        <button class="${screen === 'deck' ? 'on' : ''}" data-act="tabDeck">デッキ構築</button>
+      </nav>
+      <button data-act="new">新しいゲーム</button>
+      <button data-act="settings">設定</button>
+      <span class="spacer"></span>
+      ${screen === 'play' ? `<label class="test-tag"><input type="checkbox" data-act="showAll" ${showAllHands ? 'checked' : ''}>テスト: 両方の手札を表示</label>` : ''}
+    </header>
+    ${screen === 'deck' ? deckScreenHTML() : playView}
     ${modal === 'settings' ? settingsHTML() : ''}
-    ${state.phase === 'over' && !modal ? overHTML() : ''}`;
+    ${modal === 'newgame' ? newGameHTML() : ''}
+    ${screen === 'play' && state.phase === 'over' && !modal ? overHTML() : ''}`;
   const log = document.getElementById('log');
   if (log) log.scrollTop = log.scrollHeight;
+  app.querySelectorAll('[data-keep-scroll]').forEach(el => { if (keep[el.dataset.keepScroll] != null) el.scrollTop = keep[el.dataset.keepScroll]; });
+}
+
+// ---------- 新しいゲーム(デッキ選択) ----------
+function newGameHTML() {
+  const opts = p => `<option value="random" ${setup.decks[p] === 'random' ? 'selected' : ''}>ランダム(${config.deckSize}枚)</option>` +
+    decks.map(d => {
+      const bad = deckErrors(d).length > 0;
+      return `<option value="${d.id}" ${setup.decks[p] === d.id ? 'selected' : ''} ${bad ? 'disabled' : ''}>${esc(d.name)}${bad ? `(使えません ${d.cards.length}/${config.deckSize}枚)` : ''}</option>`;
+    }).join('');
+  return `<div class="modal-bg"><div class="modal">
+    <h2>新しいゲーム</h2>
+    <div class="set-row"><label><span style="color:var(--me)">${PNAME[0]}</span> のデッキ</label><select data-setup="0">${opts(0)}</select></div>
+    <div class="set-row"><label><span style="color:var(--op)">${PNAME[1]}</span> のデッキ</label><select data-setup="1">${opts(1)}</select></div>
+    <div class="set-row"><label>先攻</label><select data-setup="first">
+      ${[['0', PNAME[0]], ['1', PNAME[1]], ['random', 'ランダム']].map(([v, l]) => `<option value="${v}" ${setup.first === v ? 'selected' : ''}>${l}</option>`).join('')}
+    </select></div>
+    ${decks.length ? '' : '<p class="meta">デッキは「デッキ構築」で作れます。</p>'}
+    <div class="foot"><button data-act="closeModal">やめる</button><button class="primary" data-act="startGame">対戦開始</button></div>
+  </div></div>`;
+}
+
+// ---------- デッキ構築 ----------
+const REGIONS = [['北海道', 1, 1], ['東北', 2, 7], ['関東', 8, 14], ['中部', 15, 23], ['近畿', 24, 30], ['中国', 31, 35], ['四国', 36, 39], ['九州・沖縄', 40, 47]];
+const regionOf = no => (REGIONS.find(r => no >= r[1] && no <= r[2]) || ['?'])[0];
+const TAGS = [...new Set(PREFS.flatMap(p => p.tags))];
+let editId = null;
+let filt = { q: '', region: '', level: '', tag: '', sort: 'no' };
+let deleteArm = false;
+
+const curDeck = () => decks.find(d => d.id === editId) || null;
+const persistDecks = () => saveJSON(DECKS_KEY, decks);
+const countIn = (d, no) => d.cards.reduce((a, x) => a + (x === no ? 1 : 0), 0);
+function newDeck(cards = [], name) {
+  let n = decks.length + 1;
+  while (decks.some(d => d.name === `デッキ${n}`)) n++;
+  const d = { id: 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: name || `デッキ${n}`, cards };
+  decks.push(d);
+  editId = d.id;
+  persistDecks();
+  return d;
+}
+function ensureDeck() { if (!curDeck()) { if (decks.length) editId = decks[0].id; else newDeck(); } }
+
+function filteredPrefs() {
+  const q = filt.q.trim();
+  const list = PREFS.filter(p =>
+    (!q || p.name.includes(q)) &&
+    (!filt.region || regionOf(p.no) === filt.region) &&
+    (!filt.level || p.level === Number(filt.level)) &&
+    (!filt.tag || p.tags.includes(filt.tag)));
+  const key = { no: p => p.no, atk: p => -p.attack, def: p => -p.defense, level: p => -p.level * 100 + p.no }[filt.sort];
+  return list.sort((a, b) => key(a) - key(b));
+}
+function addCard(no) {
+  const d = curDeck();
+  if (countIn(d, no) >= config.maxCopies) { toast(`同じ県は${config.maxCopies}枚まで`); return; }
+  if (d.cards.length >= config.deckSize) { toast(`デッキは${config.deckSize}枚まで`); return; }
+  d.cards.push(no); d.cards.sort((a, b) => a - b);
+  persistDecks(); render();
+}
+function removeCard(no) {
+  const d = curDeck(); const i = d.cards.indexOf(no);
+  if (i < 0) return;
+  d.cards.splice(i, 1); persistDecks(); render();
+}
+function fillDeck() {
+  const d = curDeck();
+  const room = [];
+  for (const p of filteredPrefs()) for (let i = countIn(d, p.no); i < config.maxCopies; i++) room.push(p.no);
+  for (let i = room.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [room[i], room[j]] = [room[j], room[i]]; }
+  const need = config.deckSize - d.cards.length;
+  const add = room.slice(0, need);
+  d.cards.push(...add); d.cards.sort((a, b) => a - b);
+  persistDecks(); render();
+  if (add.length < need) toast(`絞り込み中の県だけでは足りず、${add.length}枚だけ入れました(あと${need - add.length}枚)`);
+}
+
+function poolHTML() {
+  const d = curDeck();
+  const list = filteredPrefs();
+  if (!list.length) return '<p class="meta">当てはまる県がありません</p>';
+  return list.map(p => {
+    const n = countIn(d, p.no);
+    const full = n >= config.maxCopies || d.cards.length >= config.deckSize;
+    const st = { no: p.no, name: p.name, level: p.level, tags: p.tags, count: 1, mult: 1, attack: p.attack, defense: Math.round(p.defense * Number(config.defenseScale)) };
+    const foot = `<div class="pool-foot"><span class="${n ? 'in' : ''}">${regionOf(p.no)} ${n}/${config.maxCopies}枚</span>
+      <span><button class="mini" data-remove="${p.no}" ${n ? '' : 'disabled'}>−</button><button class="mini" data-add="${p.no}" ${full ? 'disabled' : ''}>＋</button></span></div>`;
+    return cardHTML(st, { clickable: !full, dim: full && !n, attrs: `data-add="${p.no}"`, preview: foot });
+  }).join('');
+}
+
+function deckScreenHTML() {
+  ensureDeck();
+  const d = curDeck();
+  const errs = deckErrors(d);
+  const lv = { 1: 0, 2: 0, 3: 0, 4: 0 };
+  let atk = 0;
+  for (const no of d.cards) { lv[DB[no].level]++; atk += DB[no].attack; }
+  const uniq = [...new Set(d.cards)];
+  const sel = (key, label, opts) => `<select data-filter="${key}"><option value="">${label}</option>${opts.map(([v, l]) => `<option value="${v}" ${String(filt[key]) === String(v) ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  return `<div class="deckscreen">
+    <section class="pool-panel">
+      <div class="filters">
+        <input type="search" data-filter="q" placeholder="県名でさがす" value="${esc(filt.q)}">
+        ${sel('region', '全地方', REGIONS.map(r => [r[0], r[0]]))}
+        ${sel('level', '全部の星', [1, 2, 3, 4].map(n => [n, '★'.repeat(n)]))}
+        ${sel('tag', '全タグ', TAGS.map(t => [t, t]))}
+        <select data-filter="sort">${[['no', '県番号順'], ['atk', '攻撃力が高い順'], ['def', '防御力が高い順'], ['level', '星が多い順']].map(([v, l]) => `<option value="${v}" ${filt.sort === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        <span class="meta" id="pool-count">${filteredPrefs().length}県</span>
+      </div>
+      <div class="zone pool" id="pool">${poolHTML()}</div>
+    </section>
+    <aside class="deck-panel">
+      <div class="row">
+        <select data-deckpick style="flex:1">${decks.map(x => `<option value="${x.id}" ${x.id === d.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>
+        <button data-act="deckNew">新規</button>
+        <button data-act="deckDup">複製</button>
+      </div>
+      <div class="row"><input type="text" data-deckname value="${esc(d.name)}" maxlength="30" style="flex:1" aria-label="デッキの名前"></div>
+      <div class="deck-count ${errs.length ? '' : 'done'}"><b class="num">${d.cards.length}</b> / ${config.deckSize} 枚</div>
+      <div class="${errs.length ? 'err' : 'okmsg'}">${errs.length ? errs.map(esc).join('<br>') : 'このデッキで対戦できます'}</div>
+      <div class="lv-bars">${[1, 2, 3, 4].map(n => `<div><span>${'★'.repeat(n)}</span><i style="width:${d.cards.length ? lv[n] / Math.max(1, config.deckSize) * 100 : 0}%" class="lvbar${n}"></i><b>${lv[n]}</b></div>`).join('')}</div>
+      <div class="meta">デッキの総攻撃力 <span class="num">${fmt(atk)}</span></div>
+      <div class="deck-list" data-keep-scroll="decklist">
+        ${uniq.length ? uniq.map(no => `<div class="dl-row lvline${DB[no].level}">
+          <span>${esc(DB[no].name)} <small>${'★'.repeat(DB[no].level)}</small></span>
+          <span><b>×${countIn(d, no)}</b><button class="mini" data-remove="${no}">−</button><button class="mini" data-add="${no}">＋</button></span>
+        </div>`).join('') : '<p class="meta">左の県をクリックして入れます</p>'}
+      </div>
+      <div class="btns">
+        <button data-act="deckFill" ${d.cards.length >= config.deckSize ? 'disabled' : ''}>残りを絞り込み中の県からランダムで埋める</button>
+        <div class="row">
+          <button data-act="deckClear" ${d.cards.length ? '' : 'disabled'} style="flex:1">空にする</button>
+          <button class="danger" data-act="deckDelete" style="flex:1">${deleteArm ? 'もう一度押すと削除' : 'このデッキを削除'}</button>
+        </div>
+        <button class="primary" data-act="deckPlay" ${errs.length ? 'disabled' : ''}>このデッキで対戦する</button>
+      </div>
+      <p class="meta">変更はこの端末に自動で保存されます。</p>
+    </aside>
+  </div>`;
 }
 
 function overHTML() {
@@ -653,7 +856,7 @@ function overHTML() {
   return `<div class="modal-bg" data-act="closeOver"><div class="modal over">
     <h2><span class="p${state.winner}" style="color:var(${state.winner ? '--op' : '--me'})">${PNAME[state.winner]}</span> の勝ち!</h2>
     <p class="meta" style="text-align:center">${PNAME[1 - state.winner]} の${reason}(ターン${state.turn})</p>
-    <div class="foot" style="justify-content:center"><button class="primary" data-act="new">もう一度</button><button data-act="closeOverBtn">盤面を見る</button></div>
+    <div class="foot" style="justify-content:center"><button class="primary" data-act="again">もう一度(同じデッキ)</button><button data-act="new">デッキを選ぶ</button><button data-act="closeOverBtn">盤面を見る</button></div>
   </div></div>`;
 }
 let overClosed = false;
@@ -730,14 +933,35 @@ function readSettings() {
 
 // ---------- 入力 ----------
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-hand],[data-unit]');
+  const t = e.target.closest('[data-act],[data-hand],[data-unit],[data-add],[data-remove]');
   if (!t) return;
   const a = t.dataset.act;
+  if (a !== 'deckDelete' && deleteArm) { deleteArm = false; if (!a && !t.dataset.add && !t.dataset.remove) render(); }
+  if (t.dataset.add) { if (!t.disabled) addCard(Number(t.dataset.add)); return; }
+  if (t.dataset.remove) { removeCard(Number(t.dataset.remove)); return; }
   if (a) {
     if (a === 'showAll') { showAllHands = t.checked; render(); return; } // [TEST]
     if (a === 'closeOver' && e.target !== t) return;
     switch (a) {
-      case 'new': overClosed = false; modal = null; newGame(); return;
+      case 'new': modal = 'newgame'; render(); return;
+      case 'again': overClosed = false; modal = null; newGame(); return;
+      case 'startGame':
+        saveJSON(SETUP_KEY, setup); overClosed = false; modal = null; newGame(); return;
+      case 'closeModal': modal = null; render(); return;
+      case 'tabPlay': screen = 'play'; render(); window.scrollTo(0, 0); return;
+      case 'tabDeck': screen = 'deck'; render(); window.scrollTo(0, 0); return;
+      case 'deckNew': newDeck(); render(); return;
+      case 'deckDup': { const d = curDeck(); newDeck(d.cards.slice(), `${d.name}のコピー`); render(); return; }
+      case 'deckClear': curDeck().cards = []; persistDecks(); render(); return;
+      case 'deckFill': fillDeck(); return;
+      case 'deckDelete':
+        if (!deleteArm) { deleteArm = true; render(); return; }
+        deleteArm = false;
+        decks = decks.filter(d => d.id !== editId);
+        setup.decks = setup.decks.map(x => x === editId ? 'random' : x); saveJSON(SETUP_KEY, setup);
+        editId = null; persistDecks(); render(); toast('デッキを削除しました'); return;
+      case 'deckPlay':
+        setup.decks[0] = editId; modal = 'newgame'; render(); return;
       case 'settings': settingsError = ''; modal = 'settings'; render(); return;
       case 'closeSettings': modal = null; render(); return;
       case 'resetCfg': config = Engine.mergeConfig(Engine.DEFAULT_CONFIG); settingsError = ''; render(); return;
@@ -789,6 +1013,25 @@ document.addEventListener('click', e => {
 document.addEventListener('change', e => {
   const k = e.target.dataset && e.target.dataset.none;
   if (k) { const el = document.querySelector(`[data-set="${k}"]`); el.disabled = e.target.checked; if (!e.target.checked && !el.value) el.value = '2'; }
+  const ds = e.target.dataset || {};
+  if (ds.setup != null) { if (ds.setup === 'first') setup.first = e.target.value; else setup.decks[Number(ds.setup)] = e.target.value; }
+  if (ds.filter && ds.filter !== 'q') { filt[ds.filter] = e.target.value; render(); }
+  if (ds.deckpick != null) { editId = e.target.value; deleteArm = false; render(); }
+});
+document.addEventListener('input', e => {
+  const ds = e.target.dataset || {};
+  if (ds.filter === 'q') { // 入力中は一覧だけ描き直す(入力欄のフォーカスを保つ)
+    filt.q = e.target.value;
+    document.getElementById('pool').innerHTML = poolHTML();
+    document.getElementById('pool-count').textContent = `${filteredPrefs().length}県`;
+  }
+  if (ds.deckname != null) {
+    const d = curDeck(); if (!d) return;
+    d.name = e.target.value.trim() || '名前なし';
+    persistDecks();
+    const opt = document.querySelector(`[data-deckpick] option[value="${d.id}"]`);
+    if (opt) opt.textContent = d.name;
+  }
 });
 
 let toastTimer = null;
