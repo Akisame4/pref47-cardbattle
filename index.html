@@ -1,0 +1,809 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>47都道府県カードバトル</title>
+<style>
+:root{
+  --bg:#13161d; --panel:#1c2029; --panel2:#252a36; --line:#363d4d;
+  --text:#eef0f4; --sub:#9aa3b5; --dim:#6b7385;
+  --accent:#ffcc33; --me:#5ab0ff; --op:#ff6b6b; --ok:#6fd38a; --warn:#ffb347;
+  --lv1:#7d8899; --lv2:#4f9d69; --lv3:#3f7fd1; --lv4:#d4a017;
+  --num:"Consolas","Menlo",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:"Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif;font-size:14px}
+button{font:inherit;font-weight:700;cursor:pointer;border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:8px;padding:8px 14px}
+button:hover:not(:disabled){border-color:var(--accent)}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.primary{background:var(--accent);color:#1a1a1a;border-color:var(--accent)}
+button.danger{background:#5a2323;border-color:#8a3a3a}
+input,select{font:inherit;background:#0e1117;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+.num{font-family:var(--num);letter-spacing:.02em}
+.wrap{max-width:1400px;margin:0 auto;padding:12px 16px 40px}
+header.top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+header.top h1{font-size:18px;margin:0 12px 0 0}
+.spacer{flex:1}
+.test-tag{font-size:11px;color:var(--warn);border:1px dashed var(--warn);border-radius:6px;padding:4px 8px;display:flex;gap:6px;align-items:center}
+
+.board{display:grid;grid-template-columns:1fr 300px;gap:12px}
+@media (max-width:900px){.board{grid-template-columns:1fr}}
+.side{background:var(--panel);border:2px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px}
+.side.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.side .info{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:8px}
+.side .pname{font-weight:800;font-size:16px}
+.side.p0 .pname{color:var(--me)} .side.p1 .pname{color:var(--op)}
+.life{font-size:22px;font-weight:800}
+.life.hit{animation:hit .6s}
+@keyframes hit{0%{color:var(--op);transform:scale(1.12)}100%{color:inherit;transform:none}}
+.meta{color:var(--sub);font-size:12px}
+.zone-label{font-size:11px;color:var(--dim);margin:6px 0 4px}
+.zone{display:flex;gap:8px;flex-wrap:wrap;min-height:60px;padding:6px;border-radius:8px;background:#0e1117}
+.zone.empty::after{content:"(なし)";color:var(--dim);font-size:12px;align-self:center;padding-left:6px}
+
+.card{position:relative;width:176px;border-radius:10px;padding:7px 8px 8px;background:#f6f3ea;color:#1b1b1b;border:3px solid var(--lv1);cursor:default;user-select:none;transition:transform .08s}
+.card.lv2{border-color:var(--lv2)} .card.lv3{border-color:var(--lv3)} .card.lv4{border-color:var(--lv4);background:#fff7dc}
+.card.clickable{cursor:pointer}
+.card.clickable:hover{transform:translateY(-3px)}
+.card.selected{outline:4px solid var(--accent);outline-offset:1px}
+.card.dim{opacity:.45}
+.card.used::before{content:"攻撃済み";position:absolute;right:6px;bottom:6px;font-size:10px;background:#555;color:#fff;border-radius:4px;padding:1px 5px}
+.card .c-head{display:flex;justify-content:space-between;align-items:baseline;gap:4px}
+.card .c-name{font-weight:800;font-size:15px}
+.card .c-star{color:#c08a00;font-size:12px;white-space:nowrap}
+.card .c-stack{font-size:11px;font-weight:800;color:#b3261e;margin-top:1px}
+.card .c-stat{display:flex;gap:4px;align-items:baseline;margin-top:3px}
+.card .c-stat b{font-size:10px;width:30px;flex:none;color:#555}
+.card .c-stat span{font-family:var(--num);font-size:12px;font-weight:700}
+.card .c-stat.atk span{color:#b3261e} .card .c-stat.def span{color:#1d5fa8}
+.card .c-tags{display:flex;flex-wrap:wrap;gap:3px;margin-top:5px}
+.card .c-tags i{font-style:normal;font-size:10px;background:#e3dfd3;border-radius:4px;padding:1px 4px}
+.card .preview{margin-top:5px;font-size:11px;font-weight:800;border-radius:5px;padding:3px 5px;background:#222;color:#fff}
+.card .preview.win{background:#1f7a3a} .card .preview.lose{background:#8a2a2a} .card .preview.even{background:#666}
+.card.back{width:56px;height:78px;padding:0;background:repeating-linear-gradient(45deg,#2b3550,#2b3550 6px,#334063 6px,#334063 12px);border-color:#55607a}
+
+.ctrl{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px}
+.ctrl .turn{font-size:16px;font-weight:800}
+.ctrl .phase{display:flex;gap:6px;margin:8px 0}
+.ctrl .phase span{flex:1;text-align:center;font-size:12px;padding:4px;border-radius:6px;background:#0e1117;color:var(--dim)}
+.ctrl .phase span.on{background:var(--accent);color:#1a1a1a;font-weight:800}
+.ctrl .btns{display:flex;flex-direction:column;gap:6px}
+.hint{font-size:12px;color:var(--warn);min-height:1.4em;margin:6px 0}
+.log{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 10px;height:420px;overflow:auto;font-size:12px;line-height:1.55}
+.log div{border-bottom:1px solid #262b36;padding:3px 0}
+.log .t{color:var(--accent);font-weight:800}
+.log .p0{color:var(--me)} .log .p1{color:var(--op)}
+
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;max-width:620px;width:100%;max-height:90vh;overflow:auto}
+.modal h2{margin:0 0 12px;font-size:18px}
+.modal h3{margin:16px 0 6px;font-size:13px;color:var(--sub)}
+.set-row{display:grid;grid-template-columns:1fr 240px;gap:10px;align-items:center;padding:5px 0;border-bottom:1px solid #262b36}
+.set-row label{font-size:13px}
+.set-row small{display:block;color:var(--dim);font-size:11px}
+.set-row input[type=text],.set-row input[type=number]{width:100%}
+.set-row .inl{display:flex;gap:6px;align-items:center}
+.modal .foot{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.err{color:var(--op);font-size:12px}
+.over h2{font-size:26px;text-align:center}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#2a1d1d;border:1px solid var(--op);color:#fff;padding:10px 16px;border-radius:10px;z-index:60;font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<!-- 県データ。prefectures.json から tools/sync-data.js で書き込む(手で編集しない) -->
+<script id="pref-data" type="application/json">
+{"_note":"attack=県内総生産(円・令和4年度名目) / defense=面積(平方メートル・2025年10月1日) / level=人口(2025年国勢調査)から算出(東京=4、300万以上=3、100万以上=2、未満=1)。数値は調査時点のもの。公開前に最新値を再確認すること","prefectures":[{"no":1,"name":"北海道","level":3,"attack":20889300000000,"defense":83422270000,"population":4980272,"area_km2":83422.27,"gdp_oku_yen":208893,"tags":["海に面している","農産物","水産物","雪国","観光","温泉"]},{"no":2,"name":"青森県","level":2,"attack":4439100000000,"defense":9645110000,"population":1139461,"area_km2":9645.11,"gdp_oku_yen":44391,"tags":["田舎","海に面している","農産物","水産物","雪国"]},{"no":3,"name":"岩手県","level":2,"attack":4797100000000,"defense":15275050000,"population":1124652,"area_km2":15275.05,"gdp_oku_yen":47971,"tags":["田舎","海に面している","農産物","水産物","雪国"]},{"no":4,"name":"宮城県","level":2,"attack":9614700000000,"defense":7282340000,"population":2225414,"area_km2":7282.34,"gdp_oku_yen":96147,"tags":["海に面している","水産物","温泉"]},{"no":5,"name":"秋田県","level":1,"attack":3629300000000,"defense":11637690000,"population":881470,"area_km2":11637.69,"gdp_oku_yen":36293,"tags":["田舎","海に面している","農産物","雪国","温泉"]},{"no":6,"name":"山形県","level":1,"attack":4340400000000,"defense":9323150000,"population":992297,"area_km2":9323.15,"gdp_oku_yen":43404,"tags":["田舎","海に面している","農産物","雪国","温泉"]},{"no":7,"name":"福島県","level":2,"attack":7865000000000,"defense":13784410000,"population":1710242,"area_km2":13784.41,"gdp_oku_yen":78650,"tags":["田舎","海に面している","農産物","雪国","温泉"]},{"no":8,"name":"茨城県","level":2,"attack":14585600000000,"defense":6098320000,"population":2789856,"area_km2":6098.32,"gdp_oku_yen":145856,"tags":["海に面している","農産物","工業"]},{"no":9,"name":"栃木県","level":2,"attack":9596200000000,"defense":6408090000,"population":1863329,"area_km2":6408.09,"gdp_oku_yen":95962,"tags":["内陸","農産物","観光","温泉"]},{"no":10,"name":"群馬県","level":2,"attack":9762000000000,"defense":6362280000,"population":1865934,"area_km2":6362.28,"gdp_oku_yen":97620,"tags":["内陸","農産物","温泉"]},{"no":11,"name":"埼玉県","level":3,"attack":24665600000000,"defense":3797750000,"population":7287325,"area_km2":3797.75,"gdp_oku_yen":246656,"tags":["都心","内陸"]},{"no":12,"name":"千葉県","level":3,"attack":21414300000000,"defense":5156480000,"population":6257225,"area_km2":5156.48,"gdp_oku_yen":214143,"tags":["都心","海に面している","農産物","水産物","工業"]},{"no":13,"name":"東京都","level":4,"attack":120219900000000,"defense":2199940000,"population":14236627,"area_km2":2199.94,"gdp_oku_yen":1202199,"tags":["都心","海に面している","工業","観光"]},{"no":14,"name":"神奈川県","level":3,"attack":35159400000000,"defense":2416550000,"population":9193922,"area_km2":2416.55,"gdp_oku_yen":351594,"tags":["都心","海に面している","工業","観光","温泉"]},{"no":15,"name":"新潟県","level":2,"attack":9042900000000,"defense":12583800000,"population":2067144,"area_km2":12583.8,"gdp_oku_yen":90429,"tags":["海に面している","農産物","雪国"]},{"no":16,"name":"富山県","level":1,"attack":4927600000000,"defense":4247550000,"population":982147,"area_km2":4247.55,"gdp_oku_yen":49276,"tags":["田舎","海に面している","雪国"]},{"no":17,"name":"石川県","level":2,"attack":4717300000000,"defense":4190940000,"population":1086596,"area_km2":4190.94,"gdp_oku_yen":47173,"tags":["海に面している","水産物","雪国","観光","温泉"]},{"no":18,"name":"福井県","level":1,"attack":3494300000000,"defense":4190560000,"population":728588,"area_km2":4190.56,"gdp_oku_yen":34943,"tags":["田舎","海に面している","水産物","雪国"]},{"no":19,"name":"山梨県","level":1,"attack":3715000000000,"defense":4465270000,"population":779276,"area_km2":4465.27,"gdp_oku_yen":37150,"tags":["田舎","内陸","農産物","観光"]},{"no":20,"name":"長野県","level":2,"attack":8918200000000,"defense":13561570000,"population":1953866,"area_km2":13561.57,"gdp_oku_yen":89182,"tags":["内陸","農産物","雪国","観光","温泉"]},{"no":21,"name":"岐阜県","level":2,"attack":8225200000000,"defense":10621290000,"population":1889576,"area_km2":10621.29,"gdp_oku_yen":82252,"tags":["内陸","雪国"]},{"no":22,"name":"静岡県","level":3,"attack":18271100000000,"defense":7777000000,"population":3465667,"area_km2":7777,"gdp_oku_yen":182711,"tags":["海に面している","農産物","水産物","工業","観光","温泉"]},{"no":23,"name":"愛知県","level":3,"attack":43083100000000,"defense":5173260000,"population":7448043,"area_km2":5173.26,"gdp_oku_yen":430831,"tags":["都心","海に面している","工業"]},{"no":24,"name":"三重県","level":2,"attack":8490600000000,"defense":5774480000,"population":1693225,"area_km2":5774.48,"gdp_oku_yen":84906,"tags":["海に面している","水産物","工業"]},{"no":25,"name":"滋賀県","level":2,"attack":7006000000000,"defense":4017380000,"population":1392008,"area_km2":4017.38,"gdp_oku_yen":70060,"tags":["内陸","工業","観光"]},{"no":26,"name":"京都府","level":2,"attack":11107600000000,"defense":4612090000,"population":2500173,"area_km2":4612.09,"gdp_oku_yen":111076,"tags":["都心","海に面している","観光"]},{"no":27,"name":"大阪府","level":3,"attack":43124200000000,"defense":1905260000,"population":8759312,"area_km2":1905.26,"gdp_oku_yen":431242,"tags":["都心","海に面している","工業","観光"]},{"no":28,"name":"兵庫県","level":3,"attack":23462600000000,"defense":8400820000,"population":5317792,"area_km2":8400.82,"gdp_oku_yen":234626,"tags":["都心","海に面している","工業","温泉"]},{"no":29,"name":"奈良県","level":2,"attack":3921000000000,"defense":3690940000,"population":1268181,"area_km2":3690.94,"gdp_oku_yen":39210,"tags":["内陸","観光"]},{"no":30,"name":"和歌山県","level":1,"attack":3996100000000,"defense":4724650000,"population":863757,"area_km2":4724.65,"gdp_oku_yen":39961,"tags":["田舎","海に面している","農産物","温泉"]},{"no":31,"name":"鳥取県","level":1,"attack":1912200000000,"defense":3507050000,"population":523073,"area_km2":3507.05,"gdp_oku_yen":19122,"tags":["田舎","海に面している","水産物","雪国"]},{"no":32,"name":"島根県","level":1,"attack":2752700000000,"defense":6707790000,"population":628887,"area_km2":6707.79,"gdp_oku_yen":27527,"tags":["田舎","海に面している","水産物","温泉"]},{"no":33,"name":"岡山県","level":2,"attack":7345000000000,"defense":7114440000,"population":1807160,"area_km2":7114.44,"gdp_oku_yen":73450,"tags":["海に面している","工業"]},{"no":34,"name":"広島県","level":2,"attack":12476100000000,"defense":8478160000,"population":2682786,"area_km2":8478.16,"gdp_oku_yen":124761,"tags":["海に面している","工業","観光"]},{"no":35,"name":"山口県","level":2,"attack":6306200000000,"defense":6112900000,"population":1262770,"area_km2":6112.9,"gdp_oku_yen":63062,"tags":["田舎","海に面している","工業"]},{"no":36,"name":"徳島県","level":1,"attack":3265800000000,"defense":4146960000,"population":674790,"area_km2":4146.96,"gdp_oku_yen":32658,"tags":["田舎","海に面している"]},{"no":37,"name":"香川県","level":1,"attack":3972200000000,"defense":1876830000,"population":906828,"area_km2":1876.83,"gdp_oku_yen":39722,"tags":["田舎","海に面している","工業"]},{"no":38,"name":"愛媛県","level":2,"attack":5138100000000,"defense":5675820000,"population":1259907,"area_km2":5675.82,"gdp_oku_yen":51381,"tags":["田舎","海に面している","農産物","水産物","工業"]},{"no":39,"name":"高知県","level":1,"attack":2407400000000,"defense":7102280000,"population":642836,"area_km2":7102.28,"gdp_oku_yen":24074,"tags":["田舎","海に面している","農産物","水産物"]},{"no":40,"name":"福岡県","level":3,"attack":20187200000000,"defense":4987240000,"population":5077785,"area_km2":4987.24,"gdp_oku_yen":201872,"tags":["都心","海に面している","工業"]},{"no":41,"name":"佐賀県","level":1,"attack":3148900000000,"defense":2440640000,"population":780675,"area_km2":2440.64,"gdp_oku_yen":31489,"tags":["田舎","海に面している","農産物","温泉"]},{"no":42,"name":"長崎県","level":2,"attack":4653600000000,"defense":4131210000,"population":1232040,"area_km2":4131.21,"gdp_oku_yen":46536,"tags":["田舎","海に面している","水産物","観光","温泉"]},{"no":43,"name":"熊本県","level":2,"attack":6565100000000,"defense":7409130000,"population":1677302,"area_km2":7409.13,"gdp_oku_yen":65651,"tags":["海に面している","農産物","温泉"]},{"no":44,"name":"大分県","level":2,"attack":4900700000000,"defense":6340620000,"population":1076353,"area_km2":6340.62,"gdp_oku_yen":49007,"tags":["田舎","海に面している","観光","温泉"]},{"no":45,"name":"宮崎県","level":2,"attack":3766900000000,"defense":7734160000,"population":1017628,"area_km2":7734.16,"gdp_oku_yen":37669,"tags":["田舎","海に面している","農産物"]},{"no":46,"name":"鹿児島県","level":2,"attack":6048600000000,"defense":9186040000,"population":1511783,"area_km2":9186.04,"gdp_oku_yen":60486,"tags":["田舎","海に面している","農産物","水産物","温泉"]},{"no":47,"name":"沖縄県","level":2,"attack":4461500000000,"defense":2282110000,"population":1466548,"area_km2":2282.11,"gdp_oku_yen":44615,"tags":["海に面している","観光"]}]}
+</script>
+
+<!-- ===== ルールエンジン: (状態, 操作) → 新しい状態。DOM に触らない。tools/test-engine.js から Node でも読む ===== -->
+<script id="engine">
+const Engine = (() => {
+  'use strict';
+
+  // ルールの数字はすべてここ。ゲームロジックは state.config だけを見る
+  const DEFAULT_CONFIG = {
+    startLife: 600000000000000,     // [仮] プレイヤーのライフ
+    magicLimit: 2,                  // [仮] マジック使用上限(自分のターン開始〜次の自分のターン開始)。null = 上限なし ※フェーズ4で使用
+    startHand: 5,                   // [仮] 最初の手札
+    deckSize: 40,                   // デッキ枚数
+    maxCopies: 4,                   // 同名カードの上限
+    summonsPerTurn: 1,              // [仮] 1ターンの召喚回数(生け贄召喚を含む)
+    stackSameName: true,            // 同じ県を召喚したら場の同名県に重ねる
+    stackMultipliers: { 2: 1.5, 3: 2, 4: 2 }, // [仮] 重ねた枚数 → 攻撃力の倍率(4枚は設計書に無いので3枚と同じ値を仮置き)
+    tributeTable: {                 // [確定] 星 → 必要な生け贄の組み合わせ(リリースする県の星の並び)
+      1: [[]],
+      2: [[1]],
+      3: [[1, 1], [2]],
+      4: [[1, 1, 1], [2, 2], [3]],
+    },
+    firstPlayerDraws: false,        // [仮] 先攻の最初のドロー
+    // ---- [未決定] 仮の動き ----
+    canAttackOnSummonTurn: true,    // 召喚したターンに攻撃できる
+    reflectDamageOnLowAttack: true, // 攻撃力 < 防御力 のとき差分を攻撃側が受ける
+    attackerDestroyedOnLowAttack: false, // 攻撃力 < 防御力 のとき攻撃した県が破壊される
+    deckOutLoses: true,             // 山札が尽きてドローできないと負け
+    // ---- 試遊用(設計書外。既定値1で設計書どおり) ----
+    defenseScale: 1,                // 防御力に掛ける倍率
+  };
+
+  const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
+  function mergeConfig(base, over) {
+    const out = JSON.parse(JSON.stringify(base));
+    if (!over) return out;
+    for (const k of Object.keys(over)) {
+      if (k === 'tributeTable' || k === 'stackMultipliers') out[k] = JSON.parse(JSON.stringify(over[k]));
+      else if (isObj(over[k]) && isObj(out[k])) out[k] = mergeConfig(out[k], over[k]);
+      else out[k] = over[k];
+    }
+    return out;
+  }
+
+  const clone = o => JSON.parse(JSON.stringify(o));
+  const other = p => 1 - p;
+
+  // 決定的な乱数(オンラインで両端末が同じ結果になるよう state に種を持つ)
+  function rand(s) {
+    let t = (s.rng = (s.rng + 0x6D2B79F5) | 0);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  function shuffleInPlace(s, arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(rand(s) * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+  }
+
+  function makeDB(prefectures) {
+    const db = {};
+    for (const p of prefectures) db[p.no] = p;
+    return db;
+  }
+
+  // ランダムデッキ(フェーズ3のデッキ構築までのつなぎ)
+  function randomDeck(prefectures, config, seed) {
+    const cfg = mergeConfig(DEFAULT_CONFIG, config);
+    const s = { rng: seed | 0 };
+    const pool = [];
+    for (const p of prefectures) for (let i = 0; i < cfg.maxCopies; i++) pool.push(p.no);
+    shuffleInPlace(s, pool);
+    return pool.slice(0, cfg.deckSize);
+  }
+
+  function validateDeck(deck, db, config) {
+    const cfg = mergeConfig(DEFAULT_CONFIG, config);
+    const errs = [];
+    if (deck.length !== cfg.deckSize) errs.push(`デッキは${cfg.deckSize}枚(今は${deck.length}枚)`);
+    const cnt = {};
+    for (const no of deck) {
+      if (!db[no]) errs.push(`存在しないカード: ${no}`);
+      cnt[no] = (cnt[no] || 0) + 1;
+    }
+    for (const no of Object.keys(cnt)) if (cnt[no] > cfg.maxCopies) errs.push(`${db[no] ? db[no].name : no} が${cnt[no]}枚(上限${cfg.maxCopies})`);
+    return errs;
+  }
+
+  // ---------- 状態の参照 ----------
+  function unitNo(s, unit) { return s.cards[unit.cards[0]]; }
+  function stackMultiplier(cfg, n) {
+    if (n <= 1) return 1;
+    if (cfg.stackMultipliers[n] != null) return Number(cfg.stackMultipliers[n]);
+    const keys = Object.keys(cfg.stackMultipliers).map(Number).filter(k => k <= n).sort((a, b) => b - a);
+    return keys.length ? Number(cfg.stackMultipliers[keys[0]]) : 1;
+  }
+  function unitStats(s, unit, db) {
+    const base = db[unitNo(s, unit)];
+    const n = unit.cards.length;
+    const mult = s.config.stackSameName ? stackMultiplier(s.config, n) : 1;
+    return {
+      no: base.no, name: base.name, level: base.level, tags: base.tags, count: n, mult,
+      attack: Math.round(base.attack * mult),
+      defense: Math.round(base.defense * Number(s.config.defenseScale)),
+    };
+  }
+  function findUnit(s, p, id) { return s.players[p].field.find(u => u.id === id); }
+
+  // 戦闘結果の計算(実行と予告の両方で使う)
+  function resolveBattle(s, attacker, target, db) {
+    const a = unitStats(s, attacker, db);
+    const d = unitStats(s, target, db);
+    const diff = a.attack - d.defense;
+    if (diff > 0) return { kind: 'win', destroyTarget: true, damageTo: 'defender', damage: diff, atk: a.attack, def: d.defense };
+    if (diff < 0) return {
+      kind: 'lose', destroyTarget: false,
+      damageTo: s.config.reflectDamageOnLowAttack ? 'attacker' : null,
+      damage: s.config.reflectDamageOnLowAttack ? -diff : 0,
+      destroyAttacker: !!s.config.attackerDestroyedOnLowAttack, atk: a.attack, def: d.defense,
+    };
+    return { kind: 'even', destroyTarget: false, damageTo: null, damage: 0, atk: a.attack, def: d.defense };
+  }
+
+  function canAttackReason(s, p, unit) {
+    if (s.phase === 'over') return '勝負はついています';
+    if (s.active !== p) return '自分のターンではありません';
+    if (s.phase !== 'battle') return 'バトルフェイズではありません';
+    if (unit.attacked) return 'この県はもう攻撃しました';
+    if (!s.config.canAttackOnSummonTurn && unit.summonedTurn === s.turn) return '召喚したターンは攻撃できません';
+    return null;
+  }
+
+  // 手札のカードを召喚するときの生け贄の選び方(星の並び)の一覧。召喚できない理由も返す
+  function summonInfo(s, p, handUid, db) {
+    const pl = s.players[p];
+    const no = s.cards[handUid];
+    const card = db[no];
+    const res = { ok: false, reason: null, combos: [], level: card ? card.level : null };
+    if (s.phase === 'over') { res.reason = '勝負はついています'; return res; }
+    if (s.active !== p) { res.reason = '自分のターンではありません'; return res; }
+    if (s.phase !== 'main') { res.reason = '召喚はメインフェイズだけです'; return res; }
+    if (!pl.hand.includes(handUid)) { res.reason = '手札にないカードです'; return res; }
+    if (pl.summonsUsed >= s.config.summonsPerTurn) { res.reason = `このターンはもう召喚しました(1ターン${s.config.summonsPerTurn}回)`; return res; }
+    const have = {};
+    for (const u of pl.field) { const lv = db[unitNo(s, u)].level; have[lv] = (have[lv] || 0) + 1; }
+    const combos = s.config.tributeTable[card.level] || [];
+    for (const c of combos) {
+      const need = {};
+      for (const lv of c) need[lv] = (need[lv] || 0) + 1;
+      if (Object.keys(need).every(lv => (have[lv] || 0) >= need[lv])) res.combos.push(c.slice());
+    }
+    if (!res.combos.length) { res.reason = `生け贄が足りません(${describeCombos(combos)})`; return res; }
+    res.ok = true;
+    return res;
+  }
+  function describeCombos(combos) {
+    return combos.map(c => {
+      if (!c.length) return '生け贄なし';
+      const cnt = {};
+      for (const lv of c) cnt[lv] = (cnt[lv] || 0) + 1;
+      return Object.keys(cnt).sort().map(lv => `星${lv}を${cnt[lv]}枚`).join('+');
+    }).join(' / ');
+  }
+  function sameMultiset(a, b) {
+    if (a.length !== b.length) return false;
+    const x = a.slice().sort(), y = b.slice().sort();
+    return x.every((v, i) => v === y[i]);
+  }
+
+  // ---------- 変更処理(clone した state にだけ使う) ----------
+  function endGame(s, winner, reason, ev) {
+    if (s.phase === 'over') return;
+    s.phase = 'over';
+    s.winner = winner;
+    s.endReason = reason;
+    ev.push({ type: 'gameOver', winner, reason });
+  }
+  function draw(s, p, n, ev, loseOnEmpty) {
+    const pl = s.players[p];
+    for (let i = 0; i < n; i++) {
+      if (!pl.deck.length) {
+        ev.push({ type: 'deckEmpty', player: p });
+        if (loseOnEmpty && s.config.deckOutLoses) endGame(s, other(p), 'deckout', ev);
+        return;
+      }
+      const uid = pl.deck.shift();
+      pl.hand.push(uid);
+      ev.push({ type: 'draw', player: p, uid, no: s.cards[uid], setup: !loseOnEmpty });
+    }
+  }
+  function startTurn(s, ev) {
+    const p = s.active;
+    const pl = s.players[p];
+    s.phase = 'main';
+    pl.summonsUsed = 0;
+    pl.magicUsed = 0; // マジック枠は自分のターン開始でリセット
+    for (const u of pl.field) u.attacked = false;
+    ev.push({ type: 'turnStart', turn: s.turn, player: p });
+    const skipDraw = s.turn === 1 && !s.config.firstPlayerDraws;
+    if (!skipDraw) draw(s, p, 1, ev, true);
+  }
+  function destroyUnit(s, p, unitId, ev, why) {
+    const pl = s.players[p];
+    const i = pl.field.findIndex(u => u.id === unitId);
+    if (i < 0) return;
+    const [u] = pl.field.splice(i, 1);
+    pl.grave.push(...u.cards);
+    ev.push({ type: 'destroyed', player: p, unitId, no: s.cards[u.cards[0]], count: u.cards.length, why });
+  }
+  function damage(s, p, amount, ev, why) {
+    if (amount <= 0) return;
+    const pl = s.players[p];
+    pl.life = Math.max(0, pl.life - amount);
+    ev.push({ type: 'damage', player: p, amount, life: pl.life, why });
+    if (pl.life <= 0) endGame(s, other(p), 'life', ev);
+  }
+
+  function createGame(opts) {
+    const cfg = mergeConfig(DEFAULT_CONFIG, opts.config);
+    const first = opts.firstPlayer === 1 ? 1 : 0;
+    const s = {
+      v: 1, config: cfg, rng: (opts.seed >>> 0) || 1,
+      turn: 1, active: first, firstPlayer: first,
+      phase: 'main', winner: null, endReason: null,
+      cards: {}, nextUid: 1, nextUnit: 1, players: [],
+    };
+    const ev = [{ type: 'gameStart', firstPlayer: first }];
+    for (let i = 0; i < 2; i++) {
+      const deck = opts.decks[i].map(no => { const uid = 'c' + s.nextUid++; s.cards[uid] = no; return uid; });
+      if (opts.shuffle !== false) shuffleInPlace(s, deck);
+      s.players.push({ life: cfg.startLife, deck, hand: [], field: [], grave: [], summonsUsed: 0, magicUsed: 0 });
+    }
+    for (let i = 0; i < 2; i++) draw(s, i, cfg.startHand, ev, false);
+    startTurn(s, ev);
+    return { state: s, events: ev };
+  }
+
+  const handlers = {
+    summon(s, a, db, ev) {
+      const p = a.player;
+      const info = summonInfo(s, p, a.handUid, db);
+      if (!info.ok) return info.reason;
+      const pl = s.players[p];
+      const ids = a.tributes || [];
+      if (new Set(ids).size !== ids.length) return '同じ県を2回選んでいます';
+      const units = ids.map(id => findUnit(s, p, id));
+      if (units.some(u => !u)) return '生け贄に選んだ県が場にいません';
+      const lvs = units.map(u => db[unitNo(s, u)].level);
+      if (!info.combos.some(c => sameMultiset(c, lvs))) return `生け贄の組み合わせが違います(${describeCombos(s.config.tributeTable[info.level])})`;
+      for (const id of ids) destroyUnit(s, p, id, ev, 'tribute');
+      pl.hand.splice(pl.hand.indexOf(a.handUid), 1);
+      const no = s.cards[a.handUid];
+      const target = s.config.stackSameName ? pl.field.find(u => unitNo(s, u) === no) : null;
+      if (target) {
+        target.cards.push(a.handUid);
+        ev.push({ type: 'stack', player: p, unitId: target.id, no, count: target.cards.length, tributes: ids.length });
+      } else {
+        const unit = { id: 'u' + s.nextUnit++, cards: [a.handUid], summonedTurn: s.turn, attacked: false };
+        pl.field.push(unit);
+        ev.push({ type: 'summon', player: p, unitId: unit.id, no, tributes: ids.length });
+      }
+      pl.summonsUsed++;
+      return null;
+    },
+    toBattle(s, a) {
+      if (s.active !== a.player) return '自分のターンではありません';
+      if (s.phase !== 'main') return 'メインフェイズではありません';
+      s.phase = 'battle';
+      return null;
+    },
+    attack(s, a, db, ev) {
+      const p = a.player, op = other(p);
+      const att = findUnit(s, p, a.attackerId);
+      if (!att) return '攻撃する県が場にいません';
+      const why = canAttackReason(s, p, att);
+      if (why) return why;
+      const opp = s.players[op];
+      if (a.targetId == null) {
+        if (opp.field.length) return '相手の場に県がいる間は直接攻撃できません';
+        const st = unitStats(s, att, db);
+        att.attacked = true;
+        ev.push({ type: 'attack', player: p, attackerId: att.id, attackerNo: st.no, direct: true, atk: st.attack });
+        damage(s, op, st.attack, ev, 'direct');
+        return null;
+      }
+      const tgt = findUnit(s, op, a.targetId);
+      if (!tgt) return '攻撃先の県が見つかりません';
+      const r = resolveBattle(s, att, tgt, db);
+      att.attacked = true;
+      ev.push({ type: 'attack', player: p, attackerId: att.id, attackerNo: unitNo(s, att), targetId: tgt.id, targetNo: unitNo(s, tgt), direct: false, atk: r.atk, def: r.def, result: r.kind });
+      if (r.destroyTarget) destroyUnit(s, op, tgt.id, ev, 'battle');
+      if (r.destroyAttacker) destroyUnit(s, p, att.id, ev, 'battle');
+      if (r.damageTo === 'defender') damage(s, op, r.damage, ev, 'battle');
+      if (r.damageTo === 'attacker') damage(s, p, r.damage, ev, 'reflect');
+      return null;
+    },
+    endTurn(s, a, db, ev) {
+      if (s.active !== a.player) return '自分のターンではありません';
+      ev.push({ type: 'turnEnd', turn: s.turn, player: s.active });
+      s.active = other(s.active);
+      s.turn++;
+      startTurn(s, ev);
+      return null;
+    },
+    concede(s, a, db, ev) {
+      endGame(s, other(a.player), 'concede', ev);
+      return null;
+    },
+  };
+
+  // 唯一の入口。元の state は変えない
+  function apply(state, action, db) {
+    if (state.phase === 'over' && action.type !== 'concede') return { ok: false, state, events: [], error: '勝負はついています' };
+    const h = handlers[action.type];
+    if (!h) return { ok: false, state, events: [], error: `知らない操作: ${action.type}` };
+    if (action.player !== 0 && action.player !== 1) return { ok: false, state, events: [], error: 'player が不正です' };
+    const s = clone(state);
+    const ev = [];
+    const err = h(s, action, db, ev);
+    if (err) return { ok: false, state, events: [], error: err };
+    return { ok: true, state: s, events: ev, error: null };
+  }
+
+  return {
+    DEFAULT_CONFIG, mergeConfig, makeDB, randomDeck, validateDeck,
+    createGame, apply, summonInfo, describeCombos, unitStats, resolveBattle, canAttackReason, findUnit,
+  };
+})();
+if (typeof module !== 'undefined') module.exports = Engine;
+</script>
+
+<!-- ===== 試遊画面(一人で両方のプレイヤーを動かす) ===== -->
+<script>
+(() => {
+'use strict';
+const PREFS = JSON.parse(document.getElementById('pref-data').textContent).prefectures;
+const DB = Engine.makeDB(PREFS);
+const CFG_KEY = 'pref47.config.v1';
+const PNAME = ['プレイヤー1', 'プレイヤー2'];
+const fmt = n => Math.round(n).toLocaleString('ja-JP');
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function loadConfig() {
+  try { return Engine.mergeConfig(Engine.DEFAULT_CONFIG, JSON.parse(localStorage.getItem(CFG_KEY) || 'null')); }
+  catch (e) { return Engine.mergeConfig(Engine.DEFAULT_CONFIG); }
+}
+function saveConfig(c) { try { localStorage.setItem(CFG_KEY, JSON.stringify(c)); } catch (e) {} }
+
+let config = loadConfig();
+let state = null;
+let logLines = [];
+let ui = { mode: null, handUid: null, combos: [], tributes: [], attackerId: null };
+let showAllHands = false; // [TEST] 両方の手札を表示
+let modal = null;         // 'settings' | null
+let hitFx = [false, false];
+
+function newGame() {
+  const seed = (Math.random() * 2 ** 31) | 0;
+  const decks = [Engine.randomDeck(PREFS, config, seed ^ 0x1234), Engine.randomDeck(PREFS, config, seed ^ 0x9876)];
+  const r = Engine.createGame({ config, decks, seed, firstPlayer: 0 });
+  state = r.state;
+  logLines = [];
+  resetUI();
+  pushLog(r.events);
+  render();
+}
+function resetUI() { ui = { mode: null, handUid: null, combos: [], tributes: [], attackerId: null }; }
+
+function act(action) {
+  const r = Engine.apply(state, action, DB);
+  if (!r.ok) { toast(r.error); return false; }
+  state = r.state;
+  hitFx = [false, false];
+  for (const e of r.events) if (e.type === 'damage') hitFx[e.player] = true;
+  pushLog(r.events);
+  resetUI();
+  render();
+  return true;
+}
+
+// ---------- ログ ----------
+const nm = no => DB[no] ? DB[no].name : '?';
+const pn = p => `<span class="p${p}">${PNAME[p]}</span>`;
+function pushLog(events) {
+  for (const e of events) {
+    let t = null;
+    switch (e.type) {
+      case 'gameStart': t = `対戦開始。先攻は ${pn(e.firstPlayer)}`; break;
+      case 'turnStart': t = `<span class="t">ターン${e.turn}</span> ${pn(e.player)} の番`; break;
+      case 'draw': if (!e.setup) t = `${pn(e.player)} がドロー`; break;
+      case 'deckEmpty': t = `${pn(e.player)} の山札が尽きた!`; break;
+      case 'summon': t = `${pn(e.player)} が <b>${nm(e.no)}</b> を召喚${e.tributes ? `(生け贄${e.tributes}枚)` : ''}`; break;
+      case 'stack': t = `${pn(e.player)} が <b>${nm(e.no)}</b> を重ねた → ${e.count}枚重ね${e.tributes ? `(生け贄${e.tributes}枚)` : ''}`; break;
+      case 'destroyed': t = e.why === 'tribute' ? `${pn(e.player)} の ${nm(e.no)} をリリース` : `${pn(e.player)} の ${nm(e.no)} が破壊された`; break;
+      case 'attack':
+        t = e.direct
+          ? `${pn(e.player)} の ${nm(e.attackerNo)} が直接攻撃! 攻撃力 <span class="num">${fmt(e.atk)}</span>`
+          : `${pn(e.player)} の ${nm(e.attackerNo)}(攻 <span class="num">${fmt(e.atk)}</span>)→ ${nm(e.targetNo)}(防 <span class="num">${fmt(e.def)}</span>)`;
+        break;
+      case 'damage': t = `${pn(e.player)} に <b class="num">${fmt(e.amount)}</b> ダメージ${e.why === 'reflect' ? '(跳ね返り)' : ''} → 残り <span class="num">${fmt(e.life)}</span>`; break;
+      case 'gameOver': t = `<b>勝負あり! ${pn(e.winner)} の勝ち</b>(${({ life: 'ライフ0', deckout: '山札切れ', concede: '降参' })[e.reason]})`; break;
+    }
+    if (t) logLines.push(t);
+  }
+}
+
+// ---------- 描画 ----------
+function cardHTML(st, extra = {}) {
+  const cls = ['card', 'lv' + st.level];
+  if (extra.clickable) cls.push('clickable');
+  if (extra.selected) cls.push('selected');
+  if (extra.dim) cls.push('dim');
+  if (extra.used) cls.push('used');
+  return `<div class="${cls.join(' ')}" ${extra.attrs || ''}>
+    <div class="c-head"><span class="c-name">${esc(st.name)}</span><span class="c-star">${'★'.repeat(st.level)}</span></div>
+    ${st.count > 1 ? `<div class="c-stack">${st.count}枚重ね ×${st.mult}</div>` : ''}
+    <div class="c-stat atk"><b>攻撃力</b><span>${fmt(st.attack)}</span></div>
+    <div class="c-stat def"><b>防御力</b><span>${fmt(st.defense)}</span></div>
+    <div class="c-tags">${st.tags.map(t => `<i>${esc(t)}</i>`).join('')}</div>
+    ${extra.preview || ''}
+  </div>`;
+}
+function handCardStats(no) {
+  const b = DB[no];
+  return { no, name: b.name, level: b.level, tags: b.tags, count: 1, mult: 1, attack: b.attack, defense: Math.round(b.defense * Number(state.config.defenseScale)) };
+}
+
+function previewHTML(attUnit, tgtUnit) {
+  const r = Engine.resolveBattle(state, attUnit, tgtUnit, DB);
+  if (r.kind === 'win') return `<div class="preview win">破壊! 相手に ${fmt(r.damage)}</div>`;
+  if (r.kind === 'lose') return `<div class="preview lose">負け${r.damage ? ` 自分に ${fmt(r.damage)}` : ''}${r.destroyAttacker ? ' 攻撃側破壊' : ''}</div>`;
+  return `<div class="preview even">同じ数字: 何も起きない</div>`;
+}
+
+function sideHTML(p) {
+  const pl = state.players[p];
+  const me = state.active === p && state.phase !== 'over';
+  const op = 1 - p;
+  // 場
+  const field = pl.field.map(u => {
+    const st = Engine.unitStats(state, u, DB);
+    const ex = { attrs: `data-unit="${u.id}" data-owner="${p}"` };
+    if (me && ui.mode === 'tribute') { ex.clickable = true; ex.selected = ui.tributes.includes(u.id); }
+    if (me && state.phase === 'battle') {
+      const can = !Engine.canAttackReason(state, p, u);
+      ex.clickable = can; ex.dim = !can && !u.attacked; ex.used = u.attacked; ex.selected = ui.attackerId === u.id;
+    }
+    if (!me && ui.mode === 'attack' && state.active === op) {
+      ex.clickable = true;
+      ex.preview = previewHTML(Engine.findUnit(state, op, ui.attackerId), u);
+    }
+    return cardHTML(st, ex);
+  }).join('');
+  // 手札
+  const showHand = me || showAllHands || state.phase === 'over';
+  const hand = pl.hand.map(uid => {
+    if (!showHand) return `<div class="card back"></div>`;
+    const ex = { attrs: `data-hand="${uid}" data-owner="${p}"` };
+    if (me && state.phase === 'main') {
+      const info = Engine.summonInfo(state, p, uid, DB);
+      ex.clickable = true; ex.dim = !info.ok; ex.selected = ui.handUid === uid;
+    }
+    return cardHTML(handCardStats(state.cards[uid]), ex);
+  }).join('');
+  return `<section class="side p${p} ${me ? 'active' : ''}">
+    <div class="info">
+      <span class="pname">${PNAME[p]}${me ? ' ◀ 手番' : ''}</span>
+      <span>ライフ <span class="life num ${hitFx[p] ? 'hit' : ''}">${fmt(pl.life)}</span></span>
+      <span class="meta">山札 ${pl.deck.length} / 墓地 ${pl.grave.length} / 召喚 ${pl.summonsUsed}/${state.config.summonsPerTurn}</span>
+    </div>
+    <div class="zone-label">場</div>
+    <div class="zone ${pl.field.length ? '' : 'empty'}">${field}</div>
+    <div class="zone-label">手札(${pl.hand.length})</div>
+    <div class="zone ${pl.hand.length ? '' : 'empty'}">${hand}</div>
+  </section>`;
+}
+
+function hintText() {
+  if (state.phase === 'over') return '';
+  if (ui.mode === 'tribute') {
+    const c = Engine.describeCombos(ui.combos);
+    return `生け贄にする県を場から選んでください(${c})`;
+  }
+  if (ui.mode === 'attack') {
+    const opp = state.players[1 - state.active];
+    return opp.field.length ? '攻撃先の県を選んでください' : '相手の場は空。直接攻撃できます';
+  }
+  if (state.phase === 'main') return '手札の県をクリックで召喚';
+  if (state.phase === 'battle') return '攻撃する自分の県をクリック';
+  return '';
+}
+
+function ctrlHTML() {
+  const p = state.active;
+  const over = state.phase === 'over';
+  let btns = '';
+  if (over) {
+    btns = `<button class="primary" data-act="new">もう一度</button>`;
+  } else if (ui.mode === 'tribute') {
+    const lvs = ui.tributes.map(id => DB[state.cards[Engine.findUnit(state, p, id).cards[0]]].level);
+    const ok = ui.combos.some(c => c.length === lvs.length && c.slice().sort().join() === lvs.slice().sort().join());
+    btns = `<button class="primary" data-act="doSummon" ${ok ? '' : 'disabled'}>この生け贄で召喚</button>
+            <button data-act="cancel">やめる</button>`;
+  } else if (ui.mode === 'attack') {
+    const empty = !state.players[1 - p].field.length;
+    btns = `${empty ? '<button class="primary" data-act="direct">直接攻撃!</button>' : ''}<button data-act="cancel">選び直す</button>`;
+  } else {
+    btns = `${state.phase === 'main' ? '<button data-act="toBattle">バトルフェイズへ</button>' : ''}
+            <button class="primary" data-act="endTurn">ターン終了</button>`;
+  }
+  return `<div class="ctrl">
+    <div class="turn">${over ? `${PNAME[state.winner]} の勝ち!` : `ターン${state.turn}: ${PNAME[p]}`}</div>
+    <div class="phase">
+      <span class="${state.phase === 'main' ? 'on' : ''}">メイン(召喚)</span>
+      <span class="${state.phase === 'battle' ? 'on' : ''}">バトル</span>
+    </div>
+    <div class="hint">${hintText()}</div>
+    <div class="btns">${btns}</div>
+    ${over ? '' : `<div style="margin-top:8px"><button class="danger" data-act="concede" style="width:100%;font-size:12px">${PNAME[p]} が降参</button></div>`}
+  </div>`;
+}
+
+function render() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <header class="top">
+      <h1>47都道府県カードバトル <small class="meta">試遊版</small></h1>
+      <button data-act="new">新しいゲーム</button>
+      <button data-act="settings">設定</button>
+      <span class="spacer"></span>
+      <label class="test-tag"><input type="checkbox" data-act="showAll" ${showAllHands ? 'checked' : ''}>テスト: 両方の手札を表示</label>
+    </header>
+    <div class="board">
+      <div>
+        ${sideHTML(1)}
+        ${sideHTML(0)}
+      </div>
+      <aside>
+        ${ctrlHTML()}
+        <div class="log" id="log">${logLines.map(l => `<div>${l}</div>`).join('')}</div>
+      </aside>
+    </div>
+    ${modal === 'settings' ? settingsHTML() : ''}
+    ${state.phase === 'over' && !modal ? overHTML() : ''}`;
+  const log = document.getElementById('log');
+  if (log) log.scrollTop = log.scrollHeight;
+}
+
+function overHTML() {
+  if (overClosed) return '';
+  const reason = ({ life: 'ライフが0になった', deckout: '山札が尽きた', concede: '降参' })[state.endReason];
+  return `<div class="modal-bg" data-act="closeOver"><div class="modal over">
+    <h2><span class="p${state.winner}" style="color:var(${state.winner ? '--op' : '--me'})">${PNAME[state.winner]}</span> の勝ち!</h2>
+    <p class="meta" style="text-align:center">${PNAME[1 - state.winner]} の${reason}(ターン${state.turn})</p>
+    <div class="foot" style="justify-content:center"><button class="primary" data-act="new">もう一度</button><button data-act="closeOverBtn">盤面を見る</button></div>
+  </div></div>`;
+}
+let overClosed = false;
+
+// ---------- 設定画面 ----------
+const SETTINGS = [
+  { h: 'ルールの数字' },
+  { key: 'startLife', label: 'プレイヤーのライフ', type: 'int' },
+  { key: 'magicLimit', label: 'マジックの使用上限', note: 'マジックはフェーズ4で実装。今は値の保存だけ', type: 'intOrNone' },
+  { key: 'startHand', label: '最初の手札枚数', type: 'int' },
+  { key: 'deckSize', label: 'デッキ枚数', type: 'int' },
+  { key: 'maxCopies', label: '同名カードの上限', type: 'int' },
+  { key: 'summonsPerTurn', label: '1ターンの召喚回数', type: 'int' },
+  { key: 'stackMultipliers.2', label: '同じ県を2枚重ねた倍率', type: 'float' },
+  { key: 'stackMultipliers.3', label: '同じ県を3枚重ねた倍率', type: 'float' },
+  { key: 'stackMultipliers.4', label: '同じ県を4枚重ねた倍率', note: '設計書に無いので仮置き', type: 'float' },
+  { key: 'firstPlayerDraws', label: '先攻も最初のターンにドローする', type: 'bool' },
+  { h: '[未決定] 仮の動き' },
+  { key: 'canAttackOnSummonTurn', label: '召喚したターンに攻撃できる', type: 'bool' },
+  { key: 'reflectDamageOnLowAttack', label: '攻撃力が防御力より低いとき、差分を攻撃側が受ける', type: 'bool' },
+  { key: 'attackerDestroyedOnLowAttack', label: '攻撃力が防御力より低いとき、攻撃した県も破壊される', type: 'bool' },
+  { key: 'deckOutLoses', label: '山札が尽きてドローできなかったら負け', type: 'bool' },
+  { h: '試遊用(設計書外)' },
+  { key: 'defenseScale', label: '防御力に掛ける倍率', note: '1 = 設計書どおり。防御力が攻撃力より桁違いに小さいため、試遊で比べる用', type: 'float' },
+];
+const getPath = (o, k) => k.split('.').reduce((a, x) => a == null ? a : a[x], o);
+function setPath(o, k, v) { const ks = k.split('.'); let t = o; for (let i = 0; i < ks.length - 1; i++) t = t[ks[i]]; t[ks[ks.length - 1]] = v; }
+let settingsError = '';
+
+function settingsHTML() {
+  const rows = SETTINGS.map(s => {
+    if (s.h) return `<h3>${s.h}</h3>`;
+    const v = getPath(config, s.key);
+    let input = '';
+    if (s.type === 'bool') input = `<input type="checkbox" data-set="${s.key}" ${v ? 'checked' : ''}>`;
+    else if (s.type === 'intOrNone') input = `<span class="inl"><input type="text" class="num" data-set="${s.key}" value="${v == null ? '' : v}" ${v == null ? 'disabled' : ''}><label style="white-space:nowrap"><input type="checkbox" data-none="${s.key}" ${v == null ? 'checked' : ''}>上限なし</label></span>`;
+    else input = `<input type="text" class="num" data-set="${s.key}" value="${s.type === 'int' ? fmt(v) : v}">`;
+    return `<div class="set-row"><label>${s.label}${s.note ? `<small>${s.note}</small>` : ''}</label>${input}</div>`;
+  }).join('');
+  return `<div class="modal-bg"><div class="modal">
+    <h2>設定(ルール調整)</h2>
+    <p class="meta">変更は「保存して新しいゲーム」で反映されます。この端末に保存されます。</p>
+    ${rows}
+    <div class="err">${esc(settingsError)}</div>
+    <div class="foot">
+      <button data-act="resetCfg">初期値に戻す</button>
+      <span class="spacer"></span>
+      <button data-act="closeSettings">閉じる</button>
+      <button class="primary" data-act="saveCfg">保存して新しいゲーム</button>
+    </div>
+  </div></div>`;
+}
+function readSettings() {
+  const c = JSON.parse(JSON.stringify(config));
+  for (const s of SETTINGS) {
+    if (!s.key) continue;
+    const el = document.querySelector(`[data-set="${s.key}"]`);
+    if (s.type === 'bool') { setPath(c, s.key, el.checked); continue; }
+    if (s.type === 'intOrNone' && document.querySelector(`[data-none="${s.key}"]`).checked) { setPath(c, s.key, null); continue; }
+    const raw = el.value.replace(/[,，\s]/g, '').replace(/[０-９．]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
+    const n = Number(raw);
+    if (raw === '' || !isFinite(n)) throw new Error(`「${s.label}」が数字ではありません`);
+    if (s.type !== 'float' && !Number.isInteger(n)) throw new Error(`「${s.label}」は整数で入れてください`);
+    if (n < 0) throw new Error(`「${s.label}」はマイナスにできません`);
+    if (!Number.isSafeInteger(Math.round(n)) && s.type === 'int') throw new Error(`「${s.label}」が大きすぎます(9,007,199,254,740,991 まで)`);
+    setPath(c, s.key, n);
+  }
+  if (c.startLife <= 0) throw new Error('ライフは1以上にしてください');
+  if (c.deckSize < 1) throw new Error('デッキは1枚以上にしてください');
+  if (c.maxCopies < 1) throw new Error('同名カードの上限は1以上にしてください');
+  if (c.deckSize > PREFS.length * c.maxCopies) throw new Error(`デッキ${c.deckSize}枚は作れません(47県 × 同名${c.maxCopies}枚 = ${PREFS.length * c.maxCopies}枚まで)`);
+  return c;
+}
+
+// ---------- 入力 ----------
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-act],[data-hand],[data-unit]');
+  if (!t) return;
+  const a = t.dataset.act;
+  if (a) {
+    if (a === 'showAll') { showAllHands = t.checked; render(); return; } // [TEST]
+    if (a === 'closeOver' && e.target !== t) return;
+    switch (a) {
+      case 'new': overClosed = false; modal = null; newGame(); return;
+      case 'settings': settingsError = ''; modal = 'settings'; render(); return;
+      case 'closeSettings': modal = null; render(); return;
+      case 'resetCfg': config = Engine.mergeConfig(Engine.DEFAULT_CONFIG); settingsError = ''; render(); return;
+      case 'saveCfg':
+        try { config = readSettings(); saveConfig(config); modal = null; overClosed = false; newGame(); }
+        catch (err) { settingsError = err.message; render(); }
+        return;
+      case 'closeOver': case 'closeOverBtn': overClosed = true; render(); return;
+      case 'cancel': resetUI(); render(); return;
+      case 'toBattle': act({ type: 'toBattle', player: state.active }); return;
+      case 'endTurn': act({ type: 'endTurn', player: state.active }); return;
+      case 'concede': act({ type: 'concede', player: state.active }); return;
+      case 'direct': act({ type: 'attack', player: state.active, attackerId: ui.attackerId, targetId: null }); return;
+      case 'doSummon': act({ type: 'summon', player: state.active, handUid: ui.handUid, tributes: ui.tributes }); return;
+    }
+    return;
+  }
+  if (!state || state.phase === 'over') return;
+  const p = state.active;
+  if (t.dataset.hand) {
+    if (Number(t.dataset.owner) !== p || state.phase !== 'main') return;
+    const uid = t.dataset.hand;
+    const info = Engine.summonInfo(state, p, uid, DB);
+    if (!info.ok) { toast(info.reason); return; }
+    if (info.combos.some(c => c.length === 0)) { act({ type: 'summon', player: p, handUid: uid, tributes: [] }); return; }
+    ui = { mode: 'tribute', handUid: uid, combos: info.combos, tributes: [], attackerId: null };
+    render();
+    return;
+  }
+  if (t.dataset.unit) {
+    const owner = Number(t.dataset.owner), id = t.dataset.unit;
+    if (owner === p && ui.mode === 'tribute') {
+      ui.tributes = ui.tributes.includes(id) ? ui.tributes.filter(x => x !== id) : [...ui.tributes, id];
+      render();
+      return;
+    }
+    if (owner === p && state.phase === 'battle') {
+      const why = Engine.canAttackReason(state, p, Engine.findUnit(state, p, id));
+      if (why) { toast(why); return; }
+      ui = { mode: 'attack', handUid: null, combos: [], tributes: [], attackerId: id };
+      render();
+      return;
+    }
+    if (owner !== p && ui.mode === 'attack') {
+      act({ type: 'attack', player: p, attackerId: ui.attackerId, targetId: id });
+    }
+  }
+});
+document.addEventListener('change', e => {
+  const k = e.target.dataset && e.target.dataset.none;
+  if (k) { const el = document.querySelector(`[data-set="${k}"]`); el.disabled = e.target.checked; if (!e.target.checked && !el.value) el.value = '2'; }
+});
+
+let toastTimer = null;
+function toast(msg) {
+  document.querySelectorAll('.toast').forEach(x => x.remove());
+  const d = document.createElement('div');
+  d.className = 'toast'; d.textContent = msg;
+  document.body.appendChild(d);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => d.remove(), 2200);
+}
+
+newGame();
+window.__game = { get state() { return state; }, act, DB, Engine }; // [TEST] コンソールから触る用
+})();
+</script>
+</body>
+</html>
