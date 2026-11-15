@@ -1553,7 +1553,16 @@ document.addEventListener('input', e => {
 // 部屋の鍵 = 合言葉の SHA-256。公開の盤面は rooms/{鍵}/pub、
 // 自分のカードの中身(uid → カード)は secrets/{鍵}/{自分のuid} に置き、Security Rules で本人しか読めない
 const EMU = new URLSearchParams(location.search).has('emu'); // [TEST] ローカルの Firebase エミュレータにつなぐ
-const FIREBASE_CONFIG = null; // 本番の Firebase の設定(まだ作っていない)
+// 本番の Firebase(プロジェクト pref47-cardbattle)。apiKey は公開前提の値で、守りは Security Rules と APIキーの制限で行う
+const FIREBASE_CONFIG = {
+  apiKey: 'AIzaSyBke01V6dFNep29ffl5bEKDYql5Q6mqnRo',
+  authDomain: 'pref47-cardbattle.firebaseapp.com',
+  databaseURL: 'https://pref47-cardbattle-default-rtdb.asia-southeast1.firebasedatabase.app',
+  projectId: 'pref47-cardbattle',
+  storageBucket: 'pref47-cardbattle.firebasestorage.app',
+  messagingSenderId: '1021114083135',
+  appId: '1:1021114083135:web:c2b21ab9a9e84fed78558a',
+};
 const FB_VER = '10.12.2';
 const NET_KEY = 'pref47.net.v1';    // sessionStorage: 再読み込みで同じ部屋に戻る
 const STALE_MS = 6 * 3600 * 1000;   // これより古い部屋は、同じ合言葉で作り直せる
