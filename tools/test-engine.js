@@ -92,13 +92,13 @@ ok(E.unitStats(s, unitOf(s, 0, '鳥取'), DB).attack === DB[byName('鳥取')].at
 
 // ---- 戦闘 ----
 section('戦闘');
-const T = byName('東京'), H = byName('北海道'), TT = byName('鳥取');
+const T = byName('東京'), H = byName('北海道'), TT = byName('鳥取'), OS = byName('大阪'), KG = byName('香川');
 // 東京を出して殴る準備: 召喚回数を増やし、星の制約は tributeTable で外す
 const free = { summonsPerTurn: 9, tributeTable: { 1: [[]], 2: [[]], 3: [[]], 4: [[]] } };
-s = game([T, TT], [H, TT], free);
+s = game([T, TT], [OS, TT], free);
 s = run(s, { type: 'summon', player: 0, handUid: handOf(s, 0, '東京'), tributes: [] });
 s = run(s, { type: 'endTurn', player: 0 });
-s = run(s, { type: 'summon', player: 1, handUid: handOf(s, 1, '北海道'), tributes: [] });
+s = run(s, { type: 'summon', player: 1, handUid: handOf(s, 1, '大阪'), tributes: [] });
 s = run(s, { type: 'endTurn', player: 1 });
 ok(/バトルフェイズ/.test(err(s, { type: 'attack', player: 0, attackerId: unitOf(s, 0, '東京').id, targetId: null })), 'メインでは攻撃できない');
 s = run(s, { type: 'toBattle', player: 0 });
@@ -106,10 +106,10 @@ ok(/召喚はメイン/.test(err(s, { type: 'summon', player: 0, handUid: handOf
 ok(/直接攻撃できません/.test(err(s, { type: 'attack', player: 0, attackerId: unitOf(s, 0, '東京').id, targetId: null })), '盾がいると直接攻撃不可');
 const before = s.players[1].life;
 const s0 = s;
-s = run(s, { type: 'attack', player: 0, attackerId: unitOf(s, 0, '東京').id, targetId: unitOf(s, 1, '北海道').id });
-ok(!unitOf(s, 1, '北海道'), '北海道が破壊');
-ok(before - s.players[1].life === DB[T].attack - DB[H].defense, '差分がライフに入る');
-ok(unitOf(s0, 1, '北海道') && s0.players[1].life === before, '元の state は変わらない(純粋)');
+s = run(s, { type: 'attack', player: 0, attackerId: unitOf(s, 0, '東京').id, targetId: unitOf(s, 1, '大阪').id });
+ok(!unitOf(s, 1, '大阪'), '大阪が破壊');
+ok(before - s.players[1].life === DB[T].attack - DB[OS].defense, '差分がライフに入る');
+ok(unitOf(s0, 1, '大阪') && s0.players[1].life === before, '元の state は変わらない(純粋)');
 ok(/もう攻撃/.test(err(s, { type: 'attack', player: 0, attackerId: unitOf(s, 0, '東京').id, targetId: null })), '1体1回');
 s = run(s, { type: 'endTurn', player: 0 });
 s = run(s, { type: 'endTurn', player: 1 });
@@ -118,20 +118,20 @@ const lifeB = s.players[1].life;
 s = run(s, { type: 'attack', player: 0, attackerId: unitOf(s, 0, '東京').id, targetId: null });
 ok(lifeB - s.players[1].life === DB[T].attack, '直接攻撃は攻撃力そのまま');
 
-// 攻撃力 < 防御力(防御力倍率で再現)
-s = game([TT], [H], { ...free, defenseScale: 1000 });
+// 攻撃力 < 防御力(鳥取 → 香川)
+s = game([TT], [KG], free);
 s = run(s, { type: 'summon', player: 0, handUid: handOf(s, 0, '鳥取'), tributes: [] });
 s = run(s, { type: 'endTurn', player: 0 });
-s = run(s, { type: 'summon', player: 1, handUid: handOf(s, 1, '北海道'), tributes: [] });
+s = run(s, { type: 'summon', player: 1, handUid: handOf(s, 1, '香川'), tributes: [] });
 s = run(s, { type: 'endTurn', player: 1 });
 s = run(s, { type: 'toBattle', player: 0 });
 const lowS = s;
 const myLife = s.players[0].life;
-s = run(s, { type: 'attack', player: 0, attackerId: unitOf(s, 0, '鳥取').id, targetId: unitOf(s, 1, '北海道').id });
-ok(myLife - s.players[0].life === DB[H].defense * 1000 - DB[TT].attack, '低いと差分を攻撃側が受ける');
-ok(unitOf(s, 0, '鳥取') && unitOf(s, 1, '北海道'), '仮: どちらも破壊されない');
+s = run(s, { type: 'attack', player: 0, attackerId: unitOf(s, 0, '鳥取').id, targetId: unitOf(s, 1, '香川').id });
+ok(myLife - s.players[0].life === DB[KG].defense - DB[TT].attack, '低いと差分を攻撃側が受ける');
+ok(unitOf(s, 0, '鳥取') && unitOf(s, 1, '香川'), '仮: どちらも破壊されない');
 const lowS2 = { ...lowS, config: { ...lowS.config, attackerDestroyedOnLowAttack: true, reflectDamageOnLowAttack: false } };
-s = run(lowS2, { type: 'attack', player: 0, attackerId: unitOf(lowS2, 0, '鳥取').id, targetId: unitOf(lowS2, 1, '北海道').id });
+s = run(lowS2, { type: 'attack', player: 0, attackerId: unitOf(lowS2, 0, '鳥取').id, targetId: unitOf(lowS2, 1, '香川').id });
 ok(!unitOf(s, 0, '鳥取') && s.players[0].life === myLife, '設定: 攻撃側破壊・跳ね返りなし');
 
 // 召喚ターン攻撃不可
