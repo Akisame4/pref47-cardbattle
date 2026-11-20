@@ -39,8 +39,28 @@ let s = game([], []);
 ok(s.players[0].hand.length === 5 && s.players[1].hand.length === 5, '手札5枚ずつ');
 ok(s.players[0].deck.length === 35, '先攻は最初のドローなし');
 ok(s.players[0].life === 600000000000000, 'ライフ600兆');
+s = game([], [], { startHand: 7, firstPlayerDraws: true, handLimit: null });
+ok(s.players[0].hand.length === 8, '設定: 手札7 + 先攻ドロー(上限なし)');
+
+// 手札の上限(7枚)。超える分の引いたカードは墓地へ
 s = game([], [], { startHand: 7, firstPlayerDraws: true });
-ok(s.players[0].hand.length === 8, '設定: 手札7 + 先攻ドロー');
+ok(s.players[0].hand.length === 7 && s.players[0].grave.length === 1, '上限7: 8枚目は墓地へ');
+{
+  const r = E.apply(game([], [], { startHand: 7 }), { type: 'endTurn', player: 0 }, DB);
+  const b = r.events.find(e => e.type === 'burn');
+  ok(r.state.players[1].hand.length === 7 && r.state.players[1].grave.length === 1 && b && b.player === 1 && b.via === 'draw', 'ターン開始のドローも上限で墓地へ(burn イベント)');
+  ok(r.state.players[1].deck.length === 32, '墓地へ行っても山札からは減る');
+}
+s = game([], [], { startHand: 6 });
+s = run(s, { type: 'endTurn', player: 0 });
+ok(s.players[1].hand.length === 7 && s.players[1].grave.length === 0, '7枚ちょうどまでは手札に入る');
+
+// 先攻1ターン目は攻撃できない
+s = game([], []);
+ok(/先攻の1ターン目/.test(err(s, { type: 'toBattle', player: 0 })), '先攻1ターン目はバトルフェイズに入れない');
+s = run(s, { type: 'endTurn', player: 0 });
+ok(!err(s, { type: 'toBattle', player: 1 }), '後攻1ターン目は攻撃できる');
+ok(!err(game([], [], { firstTurnAttack: true }), { type: 'toBattle', player: 0 }), '設定: 先攻1ターン目も攻撃可');
 
 // ---- 召喚 ----
 section('召喚');
@@ -94,7 +114,7 @@ ok(E.unitStats(s, unitOf(s, 0, '鳥取'), DB).attack === DB[byName('鳥取')].at
 section('戦闘');
 const T = byName('東京'), H = byName('北海道'), TT = byName('鳥取'), OS = byName('大阪'), KG = byName('香川');
 // 東京を出して殴る準備: 召喚回数を増やし、星の制約は tributeTable で外す
-const free = { summonsPerTurn: 9, tributeTable: { 1: [[]], 2: [[]], 3: [[]], 4: [[]] } };
+const free = { firstTurnAttack: true, summonsPerTurn: 9, tributeTable: { 1: [[]], 2: [[]], 3: [[]], 4: [[]] } };
 s = game([T, TT], [OS, TT], free);
 s = run(s, { type: 'summon', player: 0, handUid: handOf(s, 0, '東京'), tributes: [] });
 s = run(s, { type: 'endTurn', player: 0 });
@@ -135,7 +155,7 @@ s = run(lowS2, { type: 'attack', player: 0, attackerId: unitOf(lowS2, 0, '鳥取
 ok(!unitOf(s, 0, '鳥取') && s.players[0].life === myLife, '設定: 攻撃側破壊・跳ね返りなし');
 
 // 召喚ターン攻撃不可
-s = game([TT], [], { canAttackOnSummonTurn: false });
+s = game([TT], [], { canAttackOnSummonTurn: false, firstTurnAttack: true });
 s = run(s, { type: 'summon', player: 0, handUid: handOf(s, 0, '鳥取'), tributes: [] });
 s = run(s, { type: 'toBattle', player: 0 });
 ok(/召喚したターン/.test(err(s, { type: 'attack', player: 0, attackerId: unitOf(s, 0, '鳥取').id, targetId: null })), '設定: 召喚ターンは攻撃不可');
@@ -168,7 +188,7 @@ section('マジック・フィールド');
 const handId = (s, p, id) => s.players[p].hand.find(u => s.cards[u] === id);
 const cast = (s, p, id, choice) => run(s, { type: 'cast', player: p, handUid: handId(s, p, id), choice });
 const castErr = (s, p, id, choice) => err(s, { type: 'cast', player: p, handUid: handId(s, p, id), choice });
-const FREE = { summonsPerTurn: 99, magicLimit: null, startHand: 10, tributeTable: { 1: [[]], 2: [[]], 3: [[]], 4: [[]] } };
+const FREE = { firstTurnAttack: true, handLimit: null, summonsPerTurn: 99, magicLimit: null, startHand: 10, tributeTable: { 1: [[]], 2: [[]], 3: [[]], 4: [[]] } };
 const summonAll = (s, p, names) => { for (const n of names) s = run(s, { type: 'summon', player: p, handUid: handOf(s, p, n), tributes: [] }); return s; };
 ok(E.SPELLS.filter(c => c.kind === 'magic').length === 10 && E.SPELLS.filter(c => c.kind === 'field').length === 3, 'マジック10枚・フィールド3枚');
 ok(E.SPELLS.every(c => DB[c.id] === c), 'DB にカードが入っている');
@@ -320,11 +340,11 @@ for (let g = 0; g < 2000; g++) {
           }
         }
         if (st.phase === 'over') break;
-        st = run(st, { type: 'toBattle', player: p });
+        if (st.turn > 1) st = run(st, { type: 'toBattle', player: p });
       }
       const op = st.players[1 - p];
       for (const u3 of st.players[p].field.slice()) {
-        if (st.phase === 'over') break;
+        if (st.phase !== 'battle') break;
         if (!E.findUnit(st, p, u3.id)) continue;
         const tgt = op.field.length ? st.players[1 - p].field[Math.floor(R() * st.players[1 - p].field.length)] : null;
         if (st.players[1 - p].field.length && !tgt) continue;
@@ -348,7 +368,7 @@ console.log(`  決着: ライフ ${ends.life} / 山札切れ ${ends.deckout} / �
 // 操作する側は「公開 state + 自分の秘密」しか持たない。それでも全部知っている場合と同じ結果になるか
 section('オンライン(手札・山札を隠す)');
 {
-  let hidOk = 0, hidNg = 0, leak = 0, hidGames = 0;
+  let hidOk = 0, hidNg = 0, leak = 0, hidGames = 0, burnHidden = 0;
   for (let g = 0; g < 300; g++) {
     let rs = 5000 + g;
     const R = () => { rs = (rs * 1103515245 + 12345) & 0x7fffffff; return rs / 0x7fffffff; };
@@ -368,6 +388,8 @@ section('オンライン(手札・山札を隠す)');
       if (r1.ok !== r2.ok) { hidNg++; return false; }
       if (!r1.ok) return false;
       const p1 = E.publicState(r1.state), p2 = E.publicState(r2.state);
+      // 相手の山札から上限超えで墓地へ行ったカードは、操作した側は中身を知らない(持ち主が次に操作した時に公開される)
+      for (const u of Object.keys(p2.cards)) if (!(u in p1.cards) && p2.players[1 - a.player].grave.includes(u)) { delete p2.cards[u]; burnHidden++; }
       if (JSON.stringify(p1) === JSON.stringify(p2)) hidOk++; else hidNg++;
       // 公開 state・公開イベントに、手札・山札の中身が漏れていない
       const hid = E.hiddenUids(p1);
@@ -392,7 +414,7 @@ section('オンライン(手札・山札を隠す)');
           const q = R() < 0.3 ? 1 - p : p; // 割り込みも混ぜる
           const cs = full().players[q].hand.map(h => ({ h, i: E.castInfo(full(), q, h, DB) })).filter(x => x.i.ok);
           if (cs.length && R() < 0.4) { const c = cs[Math.floor(R() * cs.length)]; step({ type: 'cast', player: q, handUid: c.h, choice: c.i.options[Math.floor(R() * c.i.options.length)].choice }); continue; }
-          step({ type: 'toBattle', player: p });
+          step({ type: pub.turn === 1 ? 'endTurn' : 'toBattle', player: p });
           continue;
         }
         const ready = pub.players[p].field.filter(u => !E.canAttackReason(pub, p, u));
@@ -406,7 +428,7 @@ section('オンライン(手札・山札を隠す)');
   }
   ok(hidNg === 0, `秘密なしでも同じ結果 (一致 ${hidOk} / 不一致 ${hidNg})`);
   ok(leak === 0, `手札・山札の中身が公開側に漏れていない (漏れ ${leak})`);
-  console.log(`  ${hidGames}戦・${hidOk}操作で確認`);
+  console.log(`  ${hidGames}戦・${hidOk}操作で確認(上限超えで相手の墓地へ行き、一時的に中身が非公開だったカード ${burnHidden} 回)`);
 }
 
 console.log(`\n${fail ? 'NG' : 'OK'}: ${pass} 件成功 / ${fail} 件失敗`);

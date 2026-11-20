@@ -193,6 +193,8 @@ const Engine = (() => {
       4: [[1, 1, 1], [2, 2], [3]],
     },
     firstPlayerDraws: false,        // [仮] 先攻の最初のドロー
+    firstTurnAttack: false,         // [確定] 先攻の1ターン目に攻撃できるか(2026-11-20 なしに決定)
+    handLimit: 7,                   // [確定] 手札の上限。超える分の引いた・加えたカードは墓地へ(2026-11-20)。null = 上限なし
     fieldPerTurn: 1,                // [仮] フィールドカードを出せる枚数(自分のターンに)
     randomDeckSpells: 10,           // [仮] ランダムデッキに入れるマジック・フィールドの枚数
     // ---- [未決定] 仮の動き ----
@@ -368,6 +370,18 @@ const Engine = (() => {
     s.endReason = reason;
     ev.push({ type: 'gameOver', winner, reason });
   }
+  // 手札に加える。上限(handLimit)に達していたら、そのカードは手札に入らず墓地へ
+  function addToHand(s, p, uid, ev, e) {
+    const pl = s.players[p], lim = s.config.handLimit;
+    if (lim != null && pl.hand.length >= lim) {
+      pl.grave.push(uid);
+      ev.push(Object.assign({}, e, { type: 'burn', via: e.type, player: p, uid, no: s.cards[uid] }));
+      return false;
+    }
+    pl.hand.push(uid);
+    ev.push(e);
+    return true;
+  }
   function draw(s, p, n, ev, loseOnEmpty) {
     const pl = s.players[p];
     for (let i = 0; i < n; i++) {
@@ -377,8 +391,7 @@ const Engine = (() => {
         return;
       }
       const uid = pl.deck.shift();
-      pl.hand.push(uid);
-      ev.push({ type: 'draw', player: p, uid, no: s.cards[uid], setup: !loseOnEmpty });
+      addToHand(s, p, uid, ev, { type: 'draw', player: p, uid, no: s.cards[uid], setup: !loseOnEmpty });
     }
   }
   function startTurn(s, ev) {
@@ -512,8 +525,7 @@ const Engine = (() => {
         shuffleInPlace(s, pool);
         for (const uid of pool.slice(0, 3)) {
           pl.deck.splice(pl.deck.indexOf(uid), 1);
-          pl.hand.push(uid);
-          ev.push({ type: 'search', player: p, uid, id: s.cards[uid] });
+          addToHand(s, p, uid, ev, { type: 'search', player: p, uid, id: s.cards[uid] });
         }
       },
     },
@@ -703,6 +715,7 @@ const Engine = (() => {
     toBattle(s, a) {
       if (s.active !== a.player) return '自分のターンではありません';
       if (s.phase !== 'main') return 'メインフェイズではありません';
+      if (s.turn === 1 && !s.config.firstTurnAttack) return '先攻の1ターン目は攻撃できません';
       s.phase = 'battle';
       return null;
     },
@@ -959,6 +972,7 @@ function pushLogInner(events, logLines) {
       case 'turnStart': t = `<span class="t">ターン${e.turn}</span> ${pn(e.player)} の番`; break;
       case 'draw': if (!e.setup) t = `${pn(e.player)} がドロー${e.no != null && e.mine ? `(${esc(nm(e.no))})` : ''}`; break;
       case 'deckEmpty': t = `${pn(e.player)} の山札が尽きた!`; break;
+      case 'burn': t = `　${pn(e.player)} の手札がいっぱいなので、${e.via === 'search' ? '加えた' : '引いた'}${e.no != null ? `「${esc(nm(e.no))}」` : 'カード'}は墓地へ`; break;
       case 'summon': t = `${pn(e.player)} が <b>${nm(e.no)}</b> を${e.special ? '特殊' : ''}召喚${e.tributes ? `(生け贄${e.tributes}枚)` : ''}`; break;
       case 'stack': t = `${pn(e.player)} が <b>${nm(e.no)}</b> を${e.special ? '特殊召喚して' : ''}重ねた → ${e.count}枚重ね${e.tributes ? `(生け贄${e.tributes}枚)` : ''}`; break;
       case 'destroyed': t = e.why === 'tribute' ? `${pn(e.player)} の ${nm(e.no)} をリリース` : e.why === 'effect' ? `${pn(e.player)} の ${nm(e.no)} を墓地に送った` : `${pn(e.player)} の ${nm(e.no)} が破壊された`; break;
@@ -1130,7 +1144,8 @@ function ctrlHTML() {
     const empty = !state.players[1 - p].field.length;
     btns = `${empty ? '<button class="primary" data-act="direct">直接攻撃!</button>' : ''}<button data-act="cancel">選び直す</button>`;
   } else {
-    btns = `${state.phase === 'main' ? '<button data-act="toBattle">バトルフェイズへ</button>' : ''}
+    const noAttack = state.turn === 1 && !state.config.firstTurnAttack;
+    btns = `${state.phase === 'main' ? (noAttack ? '<div class="meta">先攻の1ターン目は攻撃できません</div>' : '<button data-act="toBattle">バトルフェイズへ</button>') : ''}
             <button class="primary" data-act="endTurn">ターン終了</button>`;
   }
   if (online() && net.busy) btns = btns.replace(/<button/g, '<button disabled');
@@ -1374,6 +1389,8 @@ const SETTINGS = [
   { key: 'stackMultipliers.3', label: '同じ県を3枚重ねた倍率', type: 'float' },
   { key: 'stackMultipliers.4', label: '同じ県を4枚重ねた倍率', note: '設計書に無いので仮置き', type: 'float' },
   { key: 'firstPlayerDraws', label: '先攻も最初のターンにドローする', type: 'bool' },
+  { key: 'firstTurnAttack', label: '先攻も1ターン目に攻撃できる', type: 'bool' },
+  { key: 'handLimit', label: '手札の上限', note: '超える分の引いたカードは墓地へ', type: 'intOrNone' },
   { h: '[未決定] 仮の動き' },
   { key: 'canAttackOnSummonTurn', label: '召喚したターンに攻撃できる', type: 'bool' },
   { key: 'reflectDamageOnLowAttack', label: '攻撃力が防御力より低いとき、差分を攻撃側が受ける', type: 'bool' },
@@ -1845,6 +1862,7 @@ async function netOnPub(v) {
       if (e.player !== n.me || !e.uid || n.secret.cards[e.uid] == null) return e;
       if (e.type === 'draw') return Object.assign({}, e, { no: n.secret.cards[e.uid], mine: true });
       if (e.type === 'search') return Object.assign({}, e, { id: n.secret.cards[e.uid] });
+      if (e.type === 'burn') return Object.assign({}, e, { no: n.secret.cards[e.uid] });
       return e;
     });
     pushLog(ev, slot.logLines, n.names, p => p === n.me ? 0 : 1);
@@ -1924,7 +1942,7 @@ function onlineHTML() {
     <h3>ルール(ホストの設定)</h3>
     <div class="rules">
       ${rule('ライフ', fmt(cfgR.startLife))}${rule('デッキ', cfgR.deckSize + '枚')}${rule('同名', cfgR.maxCopies + '枚まで')}
-      ${rule('最初の手札', cfgR.startHand + '枚')}${rule('マジック', cfgR.magicLimit == null ? '上限なし' : `1ターン${cfgR.magicLimit}枚`)}${rule('召喚', `1ターン${cfgR.summonsPerTurn}回`)}
+      ${rule('最初の手札', cfgR.startHand + '枚')}${rule('マジック', cfgR.magicLimit == null ? '上限なし' : `1ターン${cfgR.magicLimit}枚`)}${rule('召喚', `1ターン${cfgR.summonsPerTurn}回`)}${rule('手札', cfgR.handLimit == null ? '上限なし' : `${cfgR.handLimit}枚まで`)}
     </div>
     ${isHost() ? '<p class="meta">ルールは上の「設定」から変えられます。</p>' : ''}
     ${playing ? `<div class="btns" style="margin-top:12px"><button class="primary" data-act="netToGame">対戦に戻る</button></div>` : `
