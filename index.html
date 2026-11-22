@@ -155,6 +155,126 @@ button.interrupt.on{background:var(--accent);color:#1a1a1a}
 .online .foot{display:flex;justify-content:flex-end;margin-top:16px}
 .credit{max-width:1400px;margin:0 auto;padding:0 16px 16px;color:var(--dim);font-size:11px;text-align:right}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#2a1d1d;border:1px solid var(--op);color:#fff;padding:10px 16px;border-radius:10px;z-index:60;font-weight:700}
+/* ===== 対戦画面(シャドバ風の配置。dailies 1122-adbd で A) ===== */
+.wrap.wide{max-width:none;padding-bottom:0}
+.arena-wrap{position:relative;width:100%;overflow:hidden;border-radius:12px}
+.stage{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:0 0;overflow:hidden;user-select:none;
+  background:radial-gradient(ellipse 70% 55% at 50% 50%,#24365e 0%,#152036 55%,#0a0f1c 100%)}
+.stage::before{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.05) 1px,transparent 1.5px);background-size:22px 22px;pointer-events:none}
+.stage .midline{position:absolute;left:300px;right:300px;top:449px;height:2px;background:linear-gradient(90deg,transparent,rgba(160,200,255,.45),transparent)}
+.stage .topleft{position:absolute;left:20px;top:16px;display:flex;gap:8px;align-items:center;z-index:6}
+.stage .topleft button{font-size:13px;padding:6px 12px}
+.stage .topleft button.on{background:var(--accent);color:#1a1a1a}
+.stage .topleft .meta{font-size:12px}
+/* 場の県(小さいカード) */
+.tok{--frame:linear-gradient(135deg,#6b3e1c,#e0a96d 30%,#8c5a2b 55%,#f0c08a 80%,#6b3e1c);--metal:#e0a96d;position:relative;flex:none;width:136px;height:172px;border-radius:12px;border:4px solid transparent;
+  background:radial-gradient(120% 80% at 50% 0%,#1d2742,#0b1020 70%) padding-box,var(--frame) border-box;box-shadow:0 8px 18px rgba(0,0,0,.6);padding:5px 6px;transition:transform .1s,box-shadow .1s}
+.tok.lv2{--frame:linear-gradient(135deg,#6f7b88,#f4f7fa 30%,#8e9aa6 55%,#ffffff 80%,#6f7b88);--metal:#dfe6ee}
+.tok.lv3{--frame:linear-gradient(135deg,#7a5a00,#ffe27a 30%,#b8860b 55%,#fff1b0 80%,#7a5a00);--metal:#ffd84a}
+.tok.lv4{--frame:conic-gradient(from 200deg,#ff5f6d,#ffc371,#f9f871,#6dffb0,#5fd3ff,#8a7dff,#ff7de9,#ff5f6d);--metal:#fff}
+.tok .t-top{display:flex;justify-content:space-between;align-items:center;gap:2px}
+.tok .t-name{font-weight:800;font-size:13px;color:#fff;text-shadow:0 1px 0 #000;white-space:nowrap}
+.tok .t-star{font-size:11px;letter-spacing:-1px;white-space:nowrap;background:var(--frame);-webkit-background-clip:text;background-clip:text;color:transparent}
+.tok .t-map{position:relative;height:100px;margin-top:3px;border-radius:6px;background:radial-gradient(circle at 50% 45%,#1f3a6e,#0b1328 75%);border:1px solid var(--metal)}
+.tok .t-map svg{width:100%;height:100%;display:block}
+.tok .t-map path{fill:#5b8def;stroke:#bcd4ff;stroke-width:.8;stroke-linejoin:round;filter:drop-shadow(0 0 3px rgba(120,170,255,.9))}
+.tok .c-badges{position:absolute;left:3px;top:3px;right:3px;display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.tok .c-badges b{font-size:10px;line-height:1.3;border-radius:4px;padding:1px 5px;color:#fff;font-weight:800;box-shadow:0 1px 3px rgba(0,0,0,.6)}
+.tok .c-stack{background:#b3261e} .tok .c-buff{background:#1f7a3a} .tok .c-fieldfx{background:#2b6cb0}
+.tok .t-used{position:absolute;right:3px;bottom:3px;font-size:10px;background:#555;color:#fff;border-radius:4px;padding:1px 5px}
+.tok .t-atk,.tok .t-def{position:absolute;bottom:-14px;width:66px;height:30px;border-radius:8px;font-size:13px;font-weight:800;line-height:14px;text-align:center;color:#fff;border:2px solid rgba(255,255,255,.85);box-shadow:0 3px 6px rgba(0,0,0,.6);padding-top:1px;white-space:nowrap;letter-spacing:-.02em}
+.tok .t-atk{left:-4px;background:linear-gradient(#e0533f,#8f1f14)}
+.tok .t-def{right:-4px;background:linear-gradient(#3f86e0,#14438f)}
+.tok .t-atk::before{content:"攻撃";display:block;font:700 9px/11px "Yu Gothic UI",sans-serif;opacity:.85}
+.tok .t-def::before{content:"防御";display:block;font:700 9px/11px "Yu Gothic UI",sans-serif;opacity:.85}
+.tok.clickable{cursor:pointer}
+.tok.clickable:hover{transform:translateY(-4px)}
+.tok.dim{opacity:.5}
+.tok.used{filter:saturate(.4) brightness(.75)}
+.tok.ready{box-shadow:0 0 0 3px #6fe39a,0 0 22px #6fe39a,0 8px 18px rgba(0,0,0,.6)}
+.tok.selected{box-shadow:0 0 0 3px #ffcc33,0 0 26px #ffcc33,0 8px 18px rgba(0,0,0,.6);transform:translateY(-8px)}
+.tok.target{cursor:crosshair}
+.tok.target.hover{box-shadow:0 0 0 3px #ff6b6b,0 0 26px #ff6b6b;transform:scale(1.05)}
+.tok .preview{position:absolute;left:50%;top:-30px;transform:translateX(-50%);white-space:nowrap;font-size:12px;font-weight:800;padding:3px 8px;border-radius:6px;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.6);z-index:3}
+.tok .preview.win{background:#1f7a3a} .tok .preview.lose{background:#8a2a2a} .tok .preview.even{background:#666}
+.stage .row{position:absolute;left:280px;right:280px;display:flex;justify-content:center;gap:26px}
+.stage .row.tight{gap:4px}
+.stage .row.opp{top:190px} .stage .row.me{top:478px}
+.stage .row-empty{height:172px;display:grid;place-items:center;color:rgba(200,215,240,.35);font-size:14px}
+/* リーダー(プレイヤー) */
+.leader{position:absolute;display:flex;align-items:center;gap:16px;z-index:2}
+.leader.opp{left:50%;transform:translateX(-50%);top:12px}
+.leader.me{left:560px;transform:translateX(-50%);bottom:14px}
+.portrait{position:relative;width:118px;height:118px;border-radius:50%;border:4px solid #c9d6f0;box-shadow:0 0 0 3px #3a4a6e,0 6px 18px rgba(0,0,0,.7);
+  background:radial-gradient(circle at 50% 35%,#4b6fb3,#1a2850 75%);display:flex;flex-direction:column;align-items:center;justify-content:center}
+.leader.c1 .portrait{background:radial-gradient(circle at 50% 35%,#b34b4b,#501a1a 75%)}
+.leader.turn .portrait{border-color:#ffcc33;box-shadow:0 0 0 3px #7a5a00,0 0 24px rgba(255,204,51,.7)}
+.portrait .pn{font-size:17px;font-weight:900;max-width:104px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:-8px}
+.portrait .life{position:absolute;bottom:-14px;left:50%;transform:translateX(-50%);background:linear-gradient(#2c1010,#120606);border:2px solid #ff8a7a;border-radius:16px;padding:2px 12px;font-size:18px;font-weight:900;color:#ffe1dc;white-space:nowrap;box-shadow:0 3px 8px rgba(0,0,0,.7)}
+.portrait .barrier{position:absolute;top:-10px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:11px;font-weight:800;background:#1f7a3a;color:#fff;border-radius:6px;padding:1px 7px}
+.portrait .barrier.off{top:auto;bottom:-40px;background:#6b2a2a}
+.portrait.target{cursor:crosshair;box-shadow:0 0 0 4px #ff6b6b,0 0 30px #ff6b6b}
+.portrait.target.hover{transform:scale(1.06)}
+.leader .res{display:flex;flex-direction:column;gap:5px;font-size:12px;color:#b9c4dc;white-space:nowrap}
+.leader .pips i{display:inline-block;width:13px;height:13px;border-radius:50%;margin-right:3px;vertical-align:-2px;background:#6fd3ff;box-shadow:0 0 8px #6fd3ff}
+.leader .pips i.off{background:#2a3550;box-shadow:none}
+.leader .pips.mg i{border-radius:2px;transform:rotate(45deg) scale(.85);background:#7fe0a6;box-shadow:0 0 8px #7fe0a6}
+.leader .pips.mg i.off{background:#2a3550;box-shadow:none}
+.leader .pips .inf{color:#7fe0a6;font-weight:800}
+.leader button.interrupt{font-size:11px;padding:3px 8px;margin:2px 0 0}
+.leader button.interrupt.on{background:var(--accent);color:#1a1a1a}
+.piles{display:flex;gap:10px;font-size:12px;color:#b9c4dc}
+.pile{width:54px;height:72px;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.3;border:2px solid #55607a;background:repeating-linear-gradient(45deg,#2b3550,#2b3550 6px,#334063 6px,#334063 12px)}
+.pile b{font-size:18px;color:#fff}
+.pile.grave{background:#1a1d26;border-style:dashed}
+/* 相手の手札 */
+.ohand{position:absolute;top:-30px;right:300px;display:flex;flex-direction:row-reverse;z-index:3}
+.ohand i{width:62px;height:86px;margin-left:-26px;border-radius:6px;border:2px solid #55607a;background:repeating-linear-gradient(45deg,#2b3550,#2b3550 6px,#334063 6px,#334063 12px);box-shadow:0 4px 10px rgba(0,0,0,.6)}
+.ohand.open{top:-120px;right:200px;zoom:.6;flex-direction:row}
+.ohand.open .card{margin-left:-80px;transition:transform .1s}
+.ohand.open .card:hover{transform:translateY(150px) scale(1.1);z-index:5}
+/* 自分の手札(扇形) */
+.stage .hand{position:absolute;right:290px;bottom:-120px;zoom:.78;display:flex;align-items:flex-end;z-index:4}
+.stage .hand .card{flex:none;margin-left:-58px;transform:translateY(var(--dy)) rotate(var(--rot));transform-origin:50% 120%;transition:transform .12s}
+.stage .hand .card:hover,.stage .hand .card.selected{transform:translateY(-150px) scale(1.12);z-index:5}
+.stage .hand .card.ok{box-shadow:0 0 0 3px #6fe39a,0 5px 14px rgba(0,0,0,.55)}
+.stage .hand .card.selected{outline:none;box-shadow:0 0 0 4px #ffcc33,0 12px 30px rgba(0,0,0,.8)}
+.stage .hand .card.dragging{opacity:.25}
+.stage .ghost{position:absolute;transform:translate(-50%,-50%) scale(.8) rotate(-3deg);pointer-events:none;z-index:20;box-shadow:0 0 0 3px #ffcc33,0 18px 40px rgba(0,0,0,.8)}
+/* 右の列 */
+.rightcol{position:absolute;right:28px;top:300px;width:190px;display:flex;flex-direction:column;align-items:stretch;gap:10px;z-index:3}
+.rightcol .ph{display:flex;border-radius:8px;overflow:hidden;border:1px solid #4a5677}
+.rightcol .ph span{flex:1;text-align:center;padding:5px 0;font-size:12px;font-weight:800;color:#8d98b3;background:#141b2c}
+.rightcol .ph span.on{background:#ffcc33;color:#1a1a1a}
+.rightcol .tobattle{font-size:15px;padding:9px;border:2px solid #ff8a7a;background:#3a1717;color:#ffd6cf}
+.rightcol .note{font-size:12px;color:#b9c4dc;text-align:center;padding:4px 0}
+.rightcol .endbtn{height:118px;border-radius:60px;border:3px solid #ffe08a;background:linear-gradient(#ffcf3f,#c98a00);color:#1a1200;font-size:22px;font-weight:900;box-shadow:0 0 22px rgba(255,204,51,.55),0 8px 18px rgba(0,0,0,.6)}
+.rightcol .endbtn:hover:not(:disabled){filter:brightness(1.1)}
+.rightcol .endbtn.wait{background:#2a3146;border-color:#4a5677;color:#8d98b3;box-shadow:none;opacity:1;font-size:18px}
+.rightcol .side-btns{display:flex;flex-direction:column;gap:8px}
+.rightcol .side-btns button{padding:11px 8px}
+.rightcol .slot{min-height:44px;display:flex;flex-direction:column;justify-content:center;gap:6px}
+.rightcol .slot button{padding:9px}
+.rightcol .turnno{text-align:center;font-size:13px;color:#b9c4dc}
+/* 左: カードの詳細・フィールド・ログ */
+.fieldslot{position:absolute;left:30px;top:372px;width:230px;padding:8px 10px;border-radius:10px;border:2px solid #8cc4ff;background:rgba(20,40,70,.85);box-shadow:0 0 16px rgba(140,196,255,.35);z-index:2}
+.fieldslot .k{font-size:11px;color:#8cc4ff;font-weight:800}
+.fieldslot b{display:block;font-size:17px;margin:2px 0}
+.fieldslot p{margin:0;font-size:11px;line-height:1.45;color:#cfe1ff}
+.fieldslot.empty{border-color:#3a4664;box-shadow:none;background:rgba(20,28,45,.6)} .fieldslot.empty b{font-size:13px;color:#6b7385} .fieldslot.empty .k{color:#6b7385}
+.detail{position:absolute;left:30px;top:520px;z-index:2}
+.detail .card{width:190px}
+.detail-empty{width:190px;height:150px;border:2px dashed #2c3650;border-radius:10px;display:grid;place-items:center;text-align:center;font-size:12px;line-height:1.6;color:#55607a}
+.logpanel{position:absolute;left:0;top:56px;bottom:0;width:270px;height:auto;border-radius:0 12px 0 0;background:rgba(8,12,22,.9);border:1px solid #2c3650;z-index:5}
+.arrow{position:absolute;left:0;top:0;width:1600px;height:900px;pointer-events:none;z-index:7}
+.arrow path{stroke:#ffcc33;stroke-width:6;fill:none;stroke-dasharray:14 8;marker-end:url(#ah);filter:drop-shadow(0 0 6px #ffcc33)}
+.hintbar{position:absolute;left:50%;top:436px;transform:translateX(-50%);font-size:13px;color:#fff;background:rgba(0,0,0,.55);padding:4px 14px;border-radius:14px;white-space:nowrap;z-index:3;pointer-events:none}
+.hintbar:empty{display:none}
+.fxlayer{position:absolute;inset:0;pointer-events:none;z-index:30}
+.dmgpop{position:absolute;font-size:34px;font-weight:900;color:#ff5a4a;text-shadow:0 0 6px #000,0 2px 0 #000;white-space:nowrap}
+.banner{position:absolute;left:0;right:0;top:400px;height:100px;display:grid;place-items:center;font-size:44px;font-weight:900;letter-spacing:.15em;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.8)}
+.banner.mine{background:linear-gradient(90deg,transparent,rgba(40,90,180,.85) 25%,rgba(40,90,180,.85) 75%,transparent)}
+.banner.theirs{background:linear-gradient(90deg,transparent,rgba(160,40,40,.85) 25%,rgba(160,40,40,.85) 75%,transparent)}
 </style>
 </head>
 <body>
@@ -915,6 +1035,7 @@ function newGame() {
   logLines = [];
   hitFx = [false, false];
   resetUI();
+  fx = null; collectFx(r.events);
   pushLog(r.events);
   render();
 }
@@ -947,6 +1068,7 @@ function act(action) {
   const r = Engine.apply(state, action, DB);
   if (!r.ok) { toast(r.error); return false; }
   state = r.state;
+  collectFx(r.events);
   hitFx = [false, false];
   for (const e of r.events) if (e.type === 'damage') hitFx[e.player] = true;
   pushLog(r.events);
@@ -1037,150 +1159,229 @@ function handCardStats(no) {
 
 function previewHTML(attUnit, tgtUnit) {
   const r = Engine.resolveBattle(state, attUnit, tgtUnit, DB);
-  if (r.kind === 'win') return `<div class="preview win">破壊! 相手に ${fmt(r.damage)}</div>`;
-  if (r.kind === 'lose') return `<div class="preview lose">負け${r.damage ? ` 自分に ${fmt(r.damage)}` : ''}${r.destroyAttacker ? ' 攻撃側破壊' : ''}</div>`;
+  if (r.kind === 'win') return `<div class="preview win">破壊! 相手に ${cho(r.damage)}</div>`;
+  if (r.kind === 'lose') return `<div class="preview lose">負け${r.damage ? ` 自分に ${cho(r.damage)}` : ''}${r.destroyAttacker ? ' 攻撃側破壊' : ''}</div>`;
   return `<div class="preview even">同じ数字: 何も起きない</div>`;
 }
 
-function sideHTML(p) {
+// ---------- 対戦画面(シャドバ風の配置。dailies 1122-adbd で A) ----------
+// 1600×900 の舞台に絶対配置で並べ、画面の大きさに合わせて丸ごと拡大縮小する
+const STAGE_W = 1600, STAGE_H = 900;
+let logOpen = false;
+let fx = null;            // 次の描画で流す演出(ドロー・召喚・ダメージ・ターン開始)
+let drag = null;          // ドラッグ中のカード
+let suppressClick = false;
+
+// 下に出すプレイヤー: オンラインは自分、ローカル試遊は手番の人
+const bottomP = () => online() ? net.me : state.active;
+// この端末で操作できる側か
+const canControl = p => !online() || p === net.me;
+
+function collectFx(events) {
+  fx = fx || { draw: [], summon: [], dmg: [], banner: null };
+  for (const e of events) {
+    if (e.type === 'draw' && !e.setup) fx.draw.push(e.uid);
+    if (e.type === 'summon' || e.type === 'stack') fx.summon.push(e.unitId);
+    if (e.type === 'damage') fx.dmg.push({ p: e.player, amount: e.amount });
+    if (e.type === 'turnStart') fx.banner = e.player;
+  }
+}
+
+function tokBadges(st) {
+  return [
+    st.count > 1 ? `<b class="c-stack">${st.count}枚重ね ×${st.mult}</b>` : '',
+    st.buffAtk && (st.buffAtk !== 1 || st.buffDef !== 1) ? `<b class="c-buff">マジック 攻×${+st.buffAtk.toFixed(3)}${st.buffDef !== 1 ? ` 防×${+st.buffDef.toFixed(3)}` : ''}</b>` : '',
+    st.fieldAtk && (st.fieldAtk !== 1 || st.fieldDef !== 1) ? `<b class="c-fieldfx">フィールド 攻×${st.fieldAtk}${st.fieldDef !== 1 ? ` 防×${st.fieldDef}` : ''}</b>` : '',
+  ].join('');
+}
+// 場の県(小さいカード: 県の形と攻撃・防御だけ)
+function tokenHTML(st, ex = {}) {
+  const cls = ['tok', 'lv' + st.level];
+  for (const k of ['clickable', 'selected', 'dim', 'used', 'ready', 'target']) if (ex[k]) cls.push(k);
+  const b = tokBadges(st);
+  return `<div class="${cls.join(' ')}" ${ex.attrs || ''}>
+    <div class="t-top"><span class="t-name">${esc(st.name)}</span><span class="t-star">${'★'.repeat(st.level)}</span></div>
+    <div class="t-map"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="${SHAPES[st.no] || ''}"/></svg>${b ? `<div class="c-badges">${b}</div>` : ''}${ex.used ? '<b class="t-used">攻撃済み</b>' : ''}</div>
+    <div class="t-atk num">${cho(st.attack)}</div><div class="t-def num">${cho(st.defense)}</div>
+    ${ex.preview || ''}
+  </div>`;
+}
+
+function rowHTML(p) {
   const pl = state.players[p];
-  const mine = !online() || p === net.me; // この端末で動かせる側
-  const me = state.active === p && state.phase !== 'over' && mine;
-  const op = 1 - p;
-  // 場
-  const field = pl.field.map(u => {
+  const active = state.active;
+  const me = active === p && state.phase !== 'over' && canControl(p);
+  const toks = pl.field.map(u => {
     const st = Engine.unitStats(state, u, DB);
     const ex = { attrs: `data-unit="${u.id}" data-owner="${p}"` };
     if (me && ui.mode === 'tribute') { ex.clickable = true; ex.selected = ui.tributes.includes(u.id); }
-    if (me && state.phase === 'battle') {
+    else if (me && state.phase === 'battle') {
       const can = !Engine.canAttackReason(state, p, u);
       const used = (u.attacks || 0) >= Engine.attacksAllowed(u);
-      ex.clickable = can; ex.dim = !can && !used; ex.used = used; ex.selected = ui.attackerId === u.id;
+      ex.clickable = can; ex.ready = can && ui.attackerId !== u.id; ex.used = used; ex.dim = !can && !used; ex.selected = ui.attackerId === u.id;
     }
-    if (!me && ui.mode === 'attack' && state.active === op) {
-      ex.clickable = true;
-      ex.preview = previewHTML(Engine.findUnit(state, op, ui.attackerId), u);
+    if (p !== active && ui.mode === 'attack' && canControl(active)) {
+      ex.clickable = true; ex.target = true;
+      ex.preview = previewHTML(Engine.findUnit(state, active, ui.attackerId), u);
     }
-    return cardHTML(st, ex);
+    return tokenHTML(st, ex);
   }).join('');
-  // 手札
-  // オンラインでは相手の番に自分の手札のマジックをそのまま使える(割り込みボタン不要)
-  const interrupting = online() ? (mine && state.active !== p && state.phase !== 'over') : (ui.interrupt === p && !me);
-  const showHand = online() ? mine : (me || interrupting || showAllHands || state.phase === 'over');
-  const hand = pl.hand.map(uid => {
-    if (!showHand || state.cards[uid] == null) return `<div class="card back"></div>`;
-    const id = state.cards[uid];
-    const ex = { attrs: `data-hand="${uid}" data-owner="${p}"` };
-    if (state.phase !== 'over' && isSpell(id) && (me || interrupting)) {
-      const info = Engine.castInfo(state, p, uid, DB);
-      ex.clickable = true; ex.dim = !info.ok;
-    } else if (me && state.phase === 'main' && !isSpell(id)) {
-      const info = Engine.summonInfo(state, p, uid, DB);
-      ex.clickable = true; ex.dim = !info.ok; ex.selected = ui.handUid === uid;
-    } else if (interrupting) ex.dim = true;
-    return anyCardHTML(id, ex);
+  return `<div class="row ${p === bottomP() ? 'me' : 'opp'} ${pl.field.length > 8 ? 'tight' : ''}">${toks || '<div class="row-empty">場に県がいません</div>'}</div>`;
+}
+
+// 手札の状態(押せる・暗い・選択中)
+function handEx(p, uid, interrupting) {
+  const me = state.active === p && state.phase !== 'over' && canControl(p);
+  const id = state.cards[uid];
+  const ex = { attrs: `data-hand="${uid}" data-owner="${p}"` };
+  if (state.phase !== 'over' && isSpell(id) && (me || interrupting)) {
+    const info = Engine.castInfo(state, p, uid, DB);
+    ex.clickable = true; ex.dim = !info.ok; ex.ok = info.ok;
+  } else if (me && state.phase === 'main' && !isSpell(id)) {
+    const info = Engine.summonInfo(state, p, uid, DB);
+    ex.clickable = true; ex.dim = !info.ok; ex.ok = info.ok; ex.selected = ui.handUid === uid;
+  } else if (interrupting || (!me && state.phase !== 'over')) ex.dim = true;
+  return ex;
+}
+const isInterrupting = p => online() ? (canControl(p) && state.active !== p && state.phase !== 'over') : (ui.interrupt === p && state.active !== p);
+
+function myHandHTML(p) {
+  const pl = state.players[p];
+  const n = pl.hand.length;
+  const inter = isInterrupting(p);
+  const cards = pl.hand.map((uid, i) => {
+    const off = i - (n - 1) / 2;
+    const ex = handEx(p, uid, inter);
+    let h = anyCardHTML(state.cards[uid], ex);
+    if (ex.ok) h = h.replace('class="card ', 'class="card ok ');
+    return h.replace('class="card ', `style="--rot:${(off * 4).toFixed(1)}deg;--dy:${(off * off * 4).toFixed(1)}px" class="card `);
   }).join('');
+  return `<div class="hand" data-hand-of="${p}">${cards}</div>`;
+}
+function topHandHTML(p) {
+  const pl = state.players[p];
+  const open = !online() && (ui.interrupt === p || showAllHands || state.phase === 'over');
+  if (!open) return `<div class="ohand">${pl.hand.map(uid => `<i data-back="${uid}"></i>`).join('')}</div>`;
+  const inter = isInterrupting(p);
+  return `<div class="ohand open">${pl.hand.map(uid => anyCardHTML(state.cards[uid], handEx(p, uid, inter))).join('')}</div>`;
+}
+
+function leaderHTML(p, pos) {
+  const pl = state.players[p];
+  const cfg = state.config;
   const left = Engine.magicLeft(state, p);
-  const magicInfo = left == null ? 'マジック 上限なし' : `マジック 残り${left}枚`;
-  const interruptBtn = !online() && !me && state.phase !== 'over'
-    ? `<button class="interrupt ${interrupting ? 'on' : ''}" data-act="interrupt" data-p="${p}">${interrupting ? '割り込みをやめる' : '割り込みでマジックを使う'}</button>` : '';
-  const turnMark = state.active === p && state.phase !== 'over';
-  const onlineBadge = online() && !mine ? (net.presence[p] === false ? '<span class="badge off">切断中</span>' : '') : '';
-  return `<section class="side p${col(p)} ${turnMark ? 'active' : ''}">
-    <div class="info">
-      <span class="pname">${PNAME[p]}${turnMark ? ' ◀ 手番' : ''}</span>${onlineBadge}
-      <span>ライフ <span class="life num ${hitFx[p] ? 'hit' : ''}">${fmt(pl.life)}</span></span>
-      ${pl.barrier ? `<span class="badge">攻撃無効 ×${pl.barrier}</span>` : ''}
-      <span class="meta">デッキ「${esc(deckNames[p])}」 / 山札 ${pl.deck.length} / 墓地 ${pl.grave.length} / 召喚 ${pl.summonsUsed}/${state.config.summonsPerTurn} / ${magicInfo}</span>
-      ${interruptBtn}
+  const summonPips = Array.from({ length: cfg.summonsPerTurn }, (_, i) => `<i class="${i < cfg.summonsPerTurn - pl.summonsUsed ? '' : 'off'}"></i>`).join('');
+  const magicMax = cfg.magicLimit == null ? 0 : Math.max(cfg.magicLimit, left || 0);
+  const magicPips = left == null ? '<span class="inf">∞</span>' : Array.from({ length: magicMax }, (_, i) => `<i class="${i < left ? '' : 'off'}"></i>`).join('');
+  const turn = state.active === p && state.phase !== 'over';
+  const directable = ui.mode === 'attack' && p !== state.active && canControl(state.active) && !pl.field.length;
+  const off = online() && p !== net.me && net.presence[p] === false;
+  const name = online() ? (p === net.me ? 'あなた' : esc(PNAME[p])) : esc(PNAME[p]);
+  const interBtn = !online() && pos === 'opp' && state.phase !== 'over'
+    ? `<button class="interrupt ${ui.interrupt === p ? 'on' : ''}" data-act="interrupt" data-p="${p}">${ui.interrupt === p ? '割り込みをやめる' : '割り込みでマジック'}</button>` : '';
+  return `<div class="leader ${pos} c${col(p)} ${turn ? 'turn' : ''}">
+    <div class="piles"><div class="pile deck" data-pile="${p}">山札<b>${pl.deck.length}</b></div><div class="pile grave">墓地<b>${pl.grave.length}</b></div></div>
+    <div class="portrait ${directable ? 'target' : ''}" data-leader="${p}">
+      <span class="pn">${name}</span>
+      <span class="life num" data-life="${p}">${cho(pl.life)}</span>
+      ${pl.barrier ? `<span class="barrier">攻撃無効 ×${pl.barrier}</span>` : ''}
+      ${off ? '<span class="barrier off">切断中</span>' : ''}
     </div>
-    <div class="zone-label">場</div>
-    <div class="zone ${pl.field.length ? '' : 'empty'}">${field}</div>
-    <div class="zone-label">手札(${pl.hand.length})</div>
-    <div class="zone ${pl.hand.length ? '' : 'empty'}">${hand}</div>
-  </section>`;
+    <div class="res">
+      <div class="pips" title="このターンに召喚できる回数">召喚 ${summonPips}</div>
+      <div class="pips mg" title="マジックを使える残り枚数">マジック ${magicPips}</div>
+      <div>手札 ${pl.hand.length}${cfg.handLimit != null ? `/${cfg.handLimit}` : ''}</div>
+      ${interBtn}
+    </div>
+  </div>`;
 }
 
 function hintText() {
   if (state.phase === 'over') return '';
   if (online() && net.busy) return '送信中…';
-  if (online() && state.active !== net.me) return '相手の番です。手札のマジックは割り込みで使えます';
-  if (ui.mode === 'tribute') {
-    const c = Engine.describeCombos(ui.combos);
-    return `生け贄にする県を場から選んでください(${c})`;
-  }
+  if (ui.mode === 'tribute') return `生け贄にする県を場から選んでください(${Engine.describeCombos(ui.combos)})`;
   if (ui.mode === 'attack') {
     const opp = state.players[1 - state.active];
-    return opp.field.length ? '攻撃先の県を選んでください' : '相手の場は空。直接攻撃できます';
+    return opp.field.length ? '攻撃先の県を選んでください(右クリックでやめる)' : '相手の場は空。相手のアイコンを選ぶと直接攻撃';
   }
+  if (online() && state.active !== net.me) return '相手の番です。手札のマジックは割り込みで使えます';
   if (ui.interrupt != null) return `${PNAME[ui.interrupt]} の手札からマジックを選んでください`;
-  if (state.phase === 'main') return '手札の県をクリックで召喚。マジックはいつでも使える';
-  if (state.phase === 'battle') return '攻撃する自分の県をクリック';
+  if (state.phase === 'main') return '手札の県を場へドラッグ(またはクリック)で召喚';
+  if (state.phase === 'battle') return '自分の県を相手の県へドラッグして攻撃';
   return '';
 }
 
-function fieldBoxHTML() {
-  if (!state.field) return `<div class="fieldbox empty">フィールド: なし</div>`;
-  const def = DB[state.cards[state.field.uid]];
-  return `<div class="fieldbox"><div>フィールド: <b>${esc(def.name)}</b> <span class="p${col(state.field.owner)}">(${PNAME[state.field.owner]})</span></div><div class="meta">${esc(def.text)}</div></div>`;
-}
-function ctrlHTML() {
+function rightHTML() {
   const p = state.active;
   const over = state.phase === 'over';
-  const waiting = online() && p !== net.me; // 相手の番
-  let btns = '';
+  const waiting = online() && p !== net.me;
+  const busy = online() && net.busy ? 'disabled' : '';
+  let main = '';
   if (over) {
-    btns = online()
+    main = online()
       ? `<button class="primary" data-act="netRematch">もう一度(デッキを選ぶ)</button><button data-act="netLeave">部屋を出る</button>`
       : `<button class="primary" data-act="again">もう一度(同じデッキ)</button><button data-act="new">デッキを選んで新しいゲーム</button>`;
+    main = `<div class="side-btns">${main}</div>`;
   } else if (waiting) {
-    btns = '';
+    main = `<div class="slot"></div><button class="endbtn wait" disabled>相手の<br>ターン</button>`;
   } else if (ui.mode === 'tribute') {
     const lvs = ui.tributes.map(id => DB[state.cards[Engine.findUnit(state, p, id).cards[0]]].level);
     const ok = ui.combos.some(c => c.length === lvs.length && c.slice().sort().join() === lvs.slice().sort().join());
-    btns = `<button class="primary" data-act="doSummon" ${ok ? '' : 'disabled'}>この生け贄で召喚</button>
-            <button data-act="cancel">やめる</button>`;
-  } else if (ui.mode === 'attack') {
-    const empty = !state.players[1 - p].field.length;
-    btns = `${empty ? '<button class="primary" data-act="direct">直接攻撃!</button>' : ''}<button data-act="cancel">選び直す</button>`;
+    main = `<div class="side-btns"><button class="primary" data-act="doSummon" ${ok ? '' : 'disabled'} ${busy}>この生け贄で召喚</button><button data-act="cancel">やめる</button></div>`;
   } else {
     const noAttack = state.turn === 1 && !state.config.firstTurnAttack;
-    btns = `${state.phase === 'main' ? (noAttack ? '<div class="meta">先攻の1ターン目は攻撃できません</div>' : '<button data-act="toBattle">バトルフェイズへ</button>') : ''}
-            <button class="primary" data-act="endTurn">ターン終了</button>`;
+    const battleBtn = state.phase !== 'main' ? '' : noAttack
+      ? '<div class="note">先攻の1ターン目は攻撃できません</div>'
+      : `<button class="tobattle" data-act="toBattle" ${busy}>バトルへ</button>`;
+    const sel = ui.mode === 'attack' ? `<button data-act="cancel">選び直す</button>` : '';
+    main = `<div class="slot">${battleBtn}${sel}</div><button class="endbtn" data-act="endTurn" ${busy}>ターン終了</button>`;
   }
-  if (online() && net.busy) btns = btns.replace(/<button/g, '<button disabled');
-  const concedeLabel = online() ? '降参する' : `${PNAME[p]} が降参`;
-  return `<div class="ctrl">
-    ${online() ? `<div class="meta">合言葉「${esc(net.phrase)}」${EMU ? ' <span class="test-tag" style="display:inline">エミュレータ</span>' : ''}</div>` : ''}
-    <div class="turn">${over ? `${PNAME[state.winner]} の勝ち!` : `ターン${state.turn}: ${PNAME[p]}`}</div>
-    <div class="phase">
-      <span class="${state.phase === 'main' ? 'on' : ''}">メイン(召喚)</span>
-      <span class="${state.phase === 'battle' ? 'on' : ''}">バトル</span>
-    </div>
-    <div class="hint">${hintText()}</div>
-    <div class="btns">${btns}</div>
-    ${fieldBoxHTML()}
-    ${over ? '' : `<div style="margin-top:8px"><button class="danger" data-act="concede" style="width:100%;font-size:12px">${concedeLabel}</button></div>`}
+  const who = online() ? (p === net.me ? 'あなたの番' : '相手の番') : `${esc(PNAME[p])} の番`;
+  return `<div class="rightcol">
+    <div class="ph"><span class="${state.phase === 'main' ? 'on' : ''}">メイン</span><span class="${state.phase === 'battle' ? 'on' : ''}">バトル</span></div>
+    ${main}
+    <div class="turnno">${over ? `${esc(PNAME[state.winner])} の勝ち!` : `ターン${state.turn} ・ ${who}`}</div>
   </div>`;
+}
+
+function fieldSlotHTML() {
+  if (!state.field) return `<div class="fieldslot empty"><div class="k">フィールド</div><b>なし</b></div>`;
+  const def = DB[state.cards[state.field.uid]];
+  const owner = online() ? (state.field.owner === net.me ? 'あなた' : '相手') : PNAME[state.field.owner];
+  return `<div class="fieldslot"><div class="k">フィールド(${esc(owner)}が発動)</div><b>${esc(def.name)}</b><p>${esc(def.text)}</p></div>`;
+}
+
+function arenaHTML() {
+  const b = bottomP(), t = 1 - b;
+  const concedeLabel = online() ? '降参' : `${esc(PNAME[state.active])} が降参`;
+  return `<div class="arena-wrap" id="arena-wrap"><div class="stage" id="stage">
+    <div class="midline"></div>
+    <div class="topleft">
+      <button data-act="toggleLog" class="${logOpen ? 'on' : ''}">ログ</button>
+      ${state.phase === 'over' ? '' : `<button class="danger" data-act="concede">${concedeLabel}</button>`}
+      ${online() ? `<span class="meta">合言葉「${esc(net.phrase)}」${EMU ? ' エミュレータ' : ''}</span>` : ''}
+    </div>
+    ${logOpen ? `<div class="logpanel log" id="log">${logLines.map(l => `<div>${l}</div>`).join('')}</div>` : `<div class="detail" id="detail"><div class="detail-empty">カードにカーソルを合わせると<br>ここに大きく出ます</div></div>`}
+    ${fieldSlotHTML()}
+    ${leaderHTML(t, 'opp')}
+    ${topHandHTML(t)}
+    ${rowHTML(t)}
+    ${rowHTML(b)}
+    <svg class="arrow" id="arrow" viewBox="0 0 ${STAGE_W} ${STAGE_H}"><defs><marker id="ah" markerUnits="userSpaceOnUse" markerWidth="30" markerHeight="30" refX="20" refY="15" orient="auto"><path d="M0,0 L30,15 L0,30 z" fill="#ffcc33"/></marker></defs><path id="arrow-path" d=""/></svg>
+    <div class="hintbar">${hintText()}</div>
+    ${leaderHTML(b, 'me')}
+    ${myHandHTML(b)}
+    ${rightHTML()}
+    <div class="fxlayer" id="fxlayer"></div>
+  </div></div>`;
 }
 
 function render() {
   const app = document.getElementById('app');
   const keep = {};
   app.querySelectorAll('[data-keep-scroll]').forEach(el => keep[el.dataset.keepScroll] = el.scrollTop);
-  const bottom = online() ? net.me : 0; // 下に出すのは自分
-  const inGame = screen === 'play' || (online() && net.view === 'game' && state);
-  const playView = !inGame ? '' : `
-    <div class="board">
-      <div>
-        ${sideHTML(1 - bottom)}
-        ${sideHTML(bottom)}
-      </div>
-      <aside>
-        ${ctrlHTML()}
-        <div class="log" id="log">${logLines.map(l => `<div>${l}</div>`).join('')}</div>
-      </aside>
-    </div>`;
+  const inGame = !!state && (screen === 'play' || (online() && net.view === 'game'));
+  app.className = inGame ? 'wrap wide' : 'wrap';
   app.innerHTML = `
     <header class="top">
       <h1>47都道府県カードバトル <small class="meta">試遊版</small></h1>
@@ -1194,7 +1395,7 @@ function render() {
       <span class="spacer"></span>
       ${screen === 'play' ? `<label class="test-tag"><input type="checkbox" data-act="showAll" ${showAllHands ? 'checked' : ''}>テスト: 両方の手札を表示</label>` : ''}
     </header>
-    ${screen === 'deck' ? deckScreenHTML() : screen === 'online' && !inGame ? onlineHTML() : playView}
+    ${screen === 'deck' ? deckScreenHTML() : screen === 'online' && !inGame ? onlineHTML() : inGame ? arenaHTML() : ''}
     ${modal === 'settings' ? settingsHTML() : ''}
     ${modal === 'newgame' ? newGameHTML() : ''}
     ${modal === 'choice' && ui.choice ? choiceHTML() : ''}
@@ -1202,7 +1403,114 @@ function render() {
   const log = document.getElementById('log');
   if (log) log.scrollTop = log.scrollHeight;
   app.querySelectorAll('[data-keep-scroll]').forEach(el => { if (keep[el.dataset.keepScroll] != null) el.scrollTop = keep[el.dataset.keepScroll]; });
+  if (inGame) { fitStage(); runFx(); drawArrow(); }
+  else fx = null;
 }
+
+// 舞台を画面に合わせて拡大縮小
+let stageK = 1;
+function fitStage() {
+  const wrap = document.getElementById('arena-wrap'), stage = document.getElementById('stage');
+  if (!wrap || !stage) return;
+  const top = wrap.getBoundingClientRect().top + window.scrollY;
+  const availH = Math.max(200, window.innerHeight - top - 40); // 下の出典表示のぶん空ける
+  stageK = Math.max(0.3, Math.min(wrap.clientWidth / STAGE_W, availH / STAGE_H));
+  stage.style.transform = `scale(${stageK})`;
+  wrap.style.height = `${STAGE_H * stageK}px`;
+  stage.style.left = `${Math.max(0, (wrap.clientWidth - STAGE_W * stageK) / 2)}px`;
+}
+window.addEventListener('resize', () => { if (document.getElementById('stage')) { fitStage(); drawArrow(); } });
+// 画面の座標 → 舞台の座標
+function toStage(x, y) {
+  const r = document.getElementById('stage').getBoundingClientRect();
+  return { x: (x - r.left) / stageK, y: (y - r.top) / stageK };
+}
+function rectOnStage(el) {
+  const r = el.getBoundingClientRect(), a = toStage(r.left, r.top);
+  return { x: a.x, y: a.y, w: r.width / stageK, h: r.height / stageK };
+}
+
+// ---------- 演出 ----------
+function runFx() {
+  const f = fx; fx = null;
+  if (!f) return;
+  const stage = document.getElementById('stage');
+  const layer = document.getElementById('fxlayer');
+  // ドロー: 山札から手札へ飛んでくる
+  f.draw.forEach((uid, i) => {
+    const el = stage.querySelector(`[data-hand="${uid}"],[data-back="${uid}"]`);
+    if (!el) return;
+    const owner = el.dataset.owner != null ? Number(el.dataset.owner) : 1 - bottomP();
+    const pile = stage.querySelector(`[data-pile="${owner}"]`);
+    if (!pile) return;
+    const a = el.getBoundingClientRect(), b = pile.getBoundingClientRect();
+    const k = a.width / (el.offsetWidth || 1) || 1;
+    const dx = (b.left + b.width / 2 - (a.left + a.width / 2)) / k, dy = (b.top + b.height / 2 - (a.top + a.height / 2)) / k;
+    el.animate([{ translate: `${dx}px ${dy}px`, scale: '0.35', opacity: 0.4 }, { translate: '0 0', scale: '1', opacity: 1 }],
+      { duration: 520, delay: i * 120, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' });
+  });
+  // 召喚・重ね: ドンと置かれる
+  for (const id of f.summon) {
+    const el = stage.querySelector(`[data-unit="${id}"]`);
+    if (el) el.animate([{ scale: '1.5', opacity: 0, filter: 'brightness(2.2)' }, { scale: '0.95', opacity: 1, offset: 0.7 }, { scale: '1', filter: 'brightness(1)' }], { duration: 420, easing: 'ease-out' });
+  }
+  // ダメージ: アイコンが揺れて数字が飛ぶ
+  f.dmg.forEach((d, i) => {
+    const pt = stage.querySelector(`[data-leader="${d.p}"]`);
+    if (!pt) return;
+    pt.animate([{ translate: '0 0' }, { translate: '-8px 0' }, { translate: '8px 0' }, { translate: '-5px 0' }, { translate: '0 0' }], { duration: 380, delay: i * 200 });
+    const r = rectOnStage(pt);
+    const n = document.createElement('div');
+    n.className = 'dmgpop num';
+    n.textContent = `-${cho(d.amount)}`;
+    n.style.left = `${r.x + r.w / 2}px`; n.style.top = `${r.y + r.h / 2}px`;
+    layer.appendChild(n);
+    n.animate([{ opacity: 0, translate: '-50% 0', scale: '0.6' }, { opacity: 1, translate: '-50% -30px', scale: '1.15', offset: 0.25 }, { opacity: 0, translate: '-50% -70px', scale: '1' }],
+      { duration: 1300, delay: i * 200, fill: 'both' }).onfinish = () => n.remove();
+  });
+  // ターン開始の帯
+  if (f.banner != null && state.phase !== 'over') {
+    const n = document.createElement('div');
+    const mine = online() ? f.banner === net.me : true;
+    n.className = `banner ${mine ? 'mine' : 'theirs'}`;
+    n.textContent = online() ? (mine ? 'あなたのターン' : '相手のターン') : `${PNAME[f.banner]} のターン`;
+    layer.appendChild(n);
+    n.animate([{ opacity: 0, scale: '1.3' }, { opacity: 1, scale: '1', offset: 0.18 }, { opacity: 1, offset: 0.75 }, { opacity: 0 }], { duration: 1300, fill: 'both' }).onfinish = () => n.remove();
+  }
+}
+
+// ---------- 攻撃の矢印 ----------
+let pointerAt = null; // 舞台の座標
+function drawArrow() {
+  const path = document.getElementById('arrow-path');
+  if (!path) return;
+  const att = ui.mode === 'attack' && ui.attackerId && document.querySelector(`.stage [data-unit="${ui.attackerId}"]`);
+  if (!att || !pointerAt) { path.setAttribute('d', ''); return; }
+  const r = rectOnStage(att);
+  const x1 = r.x + r.w / 2, y1 = r.y + 10;
+  let { x: x2, y: y2 } = pointerAt;
+  const hov = document.querySelector('.stage .tok.target.hover, .stage .portrait.target.hover');
+  if (hov) { const h = rectOnStage(hov); x2 = h.x + h.w / 2; y2 = h.y + h.h / 2; }
+  const mx = (x1 + x2) / 2 + (x2 >= x1 ? 50 : -50), my = (y1 + y2) / 2;
+  path.setAttribute('d', `M${x1},${y1} Q${mx},${my} ${x2},${y2}`);
+}
+
+// ---------- カードの詳しい表示(左) ----------
+document.addEventListener('mouseover', e => {
+  const stage = document.getElementById('stage');
+  if (!stage || !stage.contains(e.target)) return;
+  document.querySelectorAll('.stage .hover').forEach(x => x.classList.remove('hover'));
+  const tgt = e.target.closest('.tok.target, .portrait.target');
+  if (tgt) tgt.classList.add('hover');
+  const det = document.getElementById('detail');
+  if (!det || drag) return;
+  const h = e.target.closest('[data-hand]'), u = e.target.closest('[data-unit]');
+  if (h && state.cards[h.dataset.hand] != null) det.innerHTML = anyCardHTML(state.cards[h.dataset.hand], {});
+  else if (u) {
+    const unit = Engine.findUnit(state, Number(u.dataset.owner), u.dataset.unit);
+    if (unit) det.innerHTML = cardHTML(Engine.unitStats(state, unit, DB), {});
+  }
+});
 
 // ---------- 新しいゲーム(デッキ選択) ----------
 function newGameHTML() {
@@ -1452,7 +1760,8 @@ function readSettings() {
 
 // ---------- 入力 ----------
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-hand],[data-unit],[data-add],[data-remove]');
+  if (suppressClick) return;
+  const t = e.target.closest('[data-act],[data-hand],[data-unit],[data-leader],[data-add],[data-remove]');
   if (!t) return;
   const a = t.dataset.act;
   if (a !== 'deckDelete' && deleteArm) { deleteArm = false; if (!a && !t.dataset.add && !t.dataset.remove) render(); }
@@ -1513,6 +1822,7 @@ document.addEventListener('click', e => {
         return;
       case 'closeOver': case 'closeOverBtn': overClosed = true; render(); return;
       case 'cancel': resetUI(); render(); return;
+      case 'toggleLog': logOpen = !logOpen; render(); return;
       case 'toBattle': act({ type: 'toBattle', player: state.active }); return;
       case 'endTurn': act({ type: 'endTurn', player: state.active }); return;
       case 'concede':
@@ -1528,43 +1838,95 @@ document.addEventListener('click', e => {
   }
   if (!state || state.phase === 'over') return;
   if (screen === 'deck') return;
-  const p = state.active;
   if (online() && net.busy) return;
-  if (t.dataset.hand) {
-    const owner = Number(t.dataset.owner);
-    const uid = t.dataset.hand;
-    if (online() && owner !== net.me) return;
-    if (isSpell(state.cards[uid])) {
-      if (owner === p || ui.interrupt === owner || online()) castFlow(owner, uid);
-      return;
-    }
-    if (owner !== p || state.phase !== 'main') return;
-    const info = Engine.summonInfo(state, p, uid, DB);
-    if (!info.ok) { toast(info.reason); return; }
-    if (info.combos.some(c => c.length === 0)) { act({ type: 'summon', player: p, handUid: uid, tributes: [] }); return; }
-    ui = { mode: 'tribute', handUid: uid, combos: info.combos, tributes: [], attackerId: null };
+  if (t.dataset.hand) { handClick(Number(t.dataset.owner), t.dataset.hand); return; }
+  if (t.dataset.unit) { unitClick(Number(t.dataset.owner), t.dataset.unit); return; }
+  if (t.dataset.leader) leaderClick(Number(t.dataset.leader));
+});
+function handClick(owner, uid) {
+  const p = state.active;
+  if (online() && owner !== net.me) return;
+  if (isSpell(state.cards[uid])) {
+    if (owner === p || ui.interrupt === owner || online()) castFlow(owner, uid);
+    return;
+  }
+  if (owner !== p || state.phase !== 'main') return;
+  const info = Engine.summonInfo(state, p, uid, DB);
+  if (!info.ok) { toast(info.reason); return; }
+  if (info.combos.some(c => c.length === 0)) { act({ type: 'summon', player: p, handUid: uid, tributes: [] }); return; }
+  ui = { mode: 'tribute', handUid: uid, combos: info.combos, tributes: [], attackerId: null };
+  render();
+}
+function unitClick(owner, id) {
+  const p = state.active;
+  if (online() && p !== net.me) return;
+  if (owner === p && ui.mode === 'tribute') {
+    ui.tributes = ui.tributes.includes(id) ? ui.tributes.filter(x => x !== id) : [...ui.tributes, id];
     render();
     return;
   }
-  if (t.dataset.unit) {
-    const owner = Number(t.dataset.owner), id = t.dataset.unit;
-    if (online() && p !== net.me) return;
-    if (owner === p && ui.mode === 'tribute') {
-      ui.tributes = ui.tributes.includes(id) ? ui.tributes.filter(x => x !== id) : [...ui.tributes, id];
-      render();
-      return;
-    }
-    if (owner === p && state.phase === 'battle') {
-      const why = Engine.canAttackReason(state, p, Engine.findUnit(state, p, id));
-      if (why) { toast(why); return; }
-      ui = { mode: 'attack', handUid: null, combos: [], tributes: [], attackerId: id };
-      render();
-      return;
-    }
-    if (owner !== p && ui.mode === 'attack') {
-      act({ type: 'attack', player: p, attackerId: ui.attackerId, targetId: id });
+  if (owner === p && state.phase === 'battle') {
+    const why = Engine.canAttackReason(state, p, Engine.findUnit(state, p, id));
+    if (why) { toast(why); return; }
+    ui = { mode: 'attack', handUid: null, combos: [], tributes: [], attackerId: id };
+    render();
+    return;
+  }
+  if (owner !== p && ui.mode === 'attack') act({ type: 'attack', player: p, attackerId: ui.attackerId, targetId: id });
+}
+function leaderClick(owner) {
+  const p = state.active;
+  if (online() && p !== net.me) return;
+  if (owner === p || ui.mode !== 'attack') return;
+  if (state.players[owner].field.length) { toast('相手の場に県がいる間は直接攻撃できません'); return; }
+  act({ type: 'attack', player: p, attackerId: ui.attackerId, targetId: null });
+}
+
+// ---------- ドラッグ(手札を場へ / 自分の県を相手へ) ----------
+document.addEventListener('pointerdown', e => {
+  if (e.button !== 0 || !state || state.phase === 'over' || !document.getElementById('stage')) return;
+  if (online() && net.busy) return;
+  const h = e.target.closest('.stage .hand [data-hand].clickable');
+  const u = e.target.closest('.stage [data-unit].clickable');
+  if (h) drag = { kind: 'hand', el: h, uid: h.dataset.hand, owner: Number(h.dataset.owner), sx: e.clientX, sy: e.clientY, moved: false };
+  else if (u && Number(u.dataset.owner) === state.active && state.phase === 'battle' && ui.mode !== 'tribute')
+    drag = { kind: 'unit', id: u.dataset.unit, owner: Number(u.dataset.owner), sx: e.clientX, sy: e.clientY, moved: false };
+});
+document.addEventListener('pointermove', e => {
+  if (!document.getElementById('stage')) return;
+  pointerAt = toStage(e.clientX, e.clientY);
+  if (drag && !drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 8) {
+    drag.moved = true;
+    if (drag.kind === 'hand') {
+      const g = drag.el.cloneNode(true);
+      g.classList.add('ghost'); g.removeAttribute('style');
+      document.getElementById('fxlayer').appendChild(g);
+      drag.ghost = g; drag.el.classList.add('dragging');
+    } else if (ui.attackerId !== drag.id) {
+      unitClick(drag.owner, drag.id); // 攻撃する県として選ぶ
+      if (ui.attackerId !== drag.id) drag = null;
     }
   }
+  if (drag && drag.ghost) { drag.ghost.style.left = `${pointerAt.x}px`; drag.ghost.style.top = `${pointerAt.y}px`; }
+  if (ui.mode === 'attack') drawArrow();
+});
+document.addEventListener('pointerup', e => {
+  const d = drag; drag = null;
+  if (!d || !d.moved) return;
+  suppressClick = true; setTimeout(() => { suppressClick = false; }, 0);
+  if (d.ghost) d.ghost.remove();
+  if (d.el) d.el.classList.remove('dragging');
+  const at = toStage(e.clientX, e.clientY);
+  if (d.kind === 'hand') { if (at.y < 700) handClick(d.owner, d.uid); return; }
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  const tu = under && under.closest('.stage [data-unit]');
+  const tl = under && under.closest('.stage [data-leader]');
+  if (tu && Number(tu.dataset.owner) !== state.active) unitClick(Number(tu.dataset.owner), tu.dataset.unit);
+  else if (tl && Number(tl.dataset.leader) !== state.active) leaderClick(Number(tl.dataset.leader));
+});
+document.addEventListener('contextmenu', e => {
+  if (!e.target.closest('.stage') || !ui.mode) return;
+  e.preventDefault(); resetUI(); render();
 });
 document.addEventListener('change', e => {
   const k = e.target.dataset && e.target.dataset.none;
@@ -1867,6 +2229,7 @@ async function netOnPub(v) {
     });
     pushLog(ev, slot.logLines, n.names, p => p === n.me ? 0 : 1);
     if (n.lastVer) for (const e of ev) if (e.type === 'damage') slot.hitFx[e.player] = true;
+    if (n.lastVer) collectFx(ev);
   }
   n.lastVer = v.ver;
   slot.state = Engine.withSecret(data.state, n.secret.cards);
