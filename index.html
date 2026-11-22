@@ -469,7 +469,7 @@ const Engine = (() => {
   // ルールの数字はすべてここ。ゲームロジックは state.config だけを見る
   const DEFAULT_CONFIG = {
     startLife: 600000000000000,     // [仮] プレイヤーのライフ
-    magicLimit: 2,                  // [仮] マジック使用上限(自分のターン開始〜次の自分のターン開始)。null = 上限なし ※フェーズ4で使用
+    magicLimit: null,               // [確定] マジック使用上限(自分のターン開始〜次の自分のターン開始)。null = 上限なし(2026-11-23 撤廃)
     startHand: 5,                   // [仮] 最初の手札
     deckSize: 40,                   // デッキ枚数
     maxCopies: 4,                   // 同名カードの上限
@@ -576,7 +576,7 @@ const Engine = (() => {
     const f = fieldMod(s, base, db);
     return {
       no: base.no, name: base.name, level: base.level, tags: base.tags, count: n, mult,
-      buffAtk: bAtk, buffDef: bDef, fieldAtk: f.atk, fieldDef: f.def,
+      buffAtk: bAtk, buffDef: bDef, fieldAtk: f.atk, fieldDef: f.def, guard: unit.guardUntil >= s.turn,
       attack: Math.round(base.attack * mult * bAtk * f.atk),
       defense: Math.round(base.defense * Number(s.config.defenseScale) * bDef * f.def),
     };
@@ -771,6 +771,53 @@ const Engine = (() => {
   const names = (db, nos) => nos.map(no => db[no].name.replace(/[都府県]$/, '')).join('・');
   const xLabel = v => `${v}倍`;
 
+  // 追加マジック用の県の組
+  Object.assign(N, { 秋田: 5, 岐阜: 21, 山梨: 19, 静岡: 22, 三重: 24, 滋賀: 25, 京都: 26, 兵庫: 28, 和歌山: 30, 岡山: 33, 徳島: 36, 香川: 37, 愛媛: 38, 高知: 39, 宮崎: 45 });
+  const SHIKOKU = [N.徳島, N.香川, N.愛媛, N.高知];
+  const SANKEI = [N.宮城, N.京都, N.広島];   // 松島・天橋立・宮島
+  const MEIEN = [N.茨城, N.石川, N.岡山];    // 偕楽園・兼六園・後楽園
+  const MEISEN = [N.群馬, N.岐阜, N.兵庫];   // 草津・下呂・有馬
+  const MATSURI = [N.青森, N.秋田, N.宮城];  // ねぶた・竿燈・七夕
+  const GYOZA = [N.栃木, N.静岡, N.宮崎];    // 宇都宮・浜松・宮崎
+  const FUJI = [N.山梨, N.静岡];
+  // 相手のマジックの対象にできる県(飛び地の村で守られている県を除く)
+  const targets = (s, q) => s.players[q].field.filter(u => !(u.guardUntil >= s.turn));
+  function heal(s, p, amount, ev) {
+    const pl = s.players[p];
+    pl.life += amount;
+    ev.push({ type: 'heal', player: p, amount, life: pl.life });
+  }
+  // 場の県を持ち主の手札に戻す(重ねた分も全部。手札があふれた分は墓地)
+  function bounce(s, q, unitId, ev) {
+    const pl = s.players[q];
+    const i = pl.field.findIndex(u => u.id === unitId);
+    if (i < 0) return;
+    const [u] = pl.field.splice(i, 1);
+    ev.push({ type: 'bounced', player: q, unitId, no: s.cards[u.cards[0]], count: u.cards.length });
+    for (const uid of u.cards) addToHand(s, q, uid, ev, { type: 'returned', player: q, uid });
+  }
+  // 山札にある、指定の星の県(uid)
+  const deckPrefs = (s, p, db, level) => s.players[p].deck.filter(uid => kindOf(db, s.cards[uid]) === 'pref' && db[s.cards[uid]].level === level);
+  // 橋・道でつながった2県: 片方がいれば、もう片方を手札か山札から特殊召喚
+  function bridge(id, name, a, b, label) {
+    return {
+      id, kind: 'magic', name,
+      text: `自分の場に${label}のどちらかがいる時、もう片方を手札か山札から特殊召喚する`,
+      options(s, p, db) {
+        const on = [a, b].filter(no => findByNo(s, p, no));
+        if (!on.length) return `${names(db, [a, b])}のどちらかが場にいる時に使えます`;
+        if (on.length === 2) return 'もう両方とも場にいます';
+        const miss = on[0] === a ? b : a;
+        return findSource(s, p, miss) ? [{ label: `${names(db, [miss])}を特殊召喚`, choice: 'go' }] : `${names(db, [miss])}が手札にも山札にもいません`;
+      },
+      resolve(s, p, choice, db, ev) {
+        const miss = findByNo(s, p, a) ? b : a;
+        const src = findSource(s, p, miss);
+        if (src) specialSummon(s, p, src, ev);
+      },
+    };
+  }
+
   const SPELLS = [
     {
       id: 'm_kitakanto', kind: 'magic', name: '北関東最弱連合軍',
@@ -900,13 +947,236 @@ const Engine = (() => {
     },
     {
       id: 'm_kokunaisen', kind: 'magic', name: '国内線需要増加',
-      text: 'マジックの使用上限が、次の自分のターン開始まで2枚増える',
-      params: { plus: 2 },
+      text: 'カードを2枚引く(観光客が増える)',
+      params: { draw: 2 },
+      options(s, p, db) { return s.players[p].deck.length ? [{ label: `カードを${this.params.draw}枚引く`, choice: 'go' }] : '山札がありません'; },
+      resolve(s, p, choice, db, ev) { draw(s, p, this.params.draw, ev, false); },
+    },
+    // ---- 2026-11-23 追加(設計書10章「追加マジック」。数字は [仮]) ----
+    {
+      id: 'm_chibatokyo', kind: 'magic', name: '名前は東京、住所は千葉',
+      text: '自分の場に千葉と東京がいれば、千葉の攻撃力が2倍',
+      params: { atk: 2 },
       options(s, p, db) {
-        if (s.config.magicLimit == null) return 'マジックの使用上限がない設定なので、効果がありません';
-        return [{ label: `マジックをあと${this.params.plus}枚多く使えるようにする`, choice: 'go' }];
+        return findByNo(s, p, N.千葉) && findByNo(s, p, N.東京) ? [{ label: `千葉の攻撃力${xLabel(this.params.atk)}`, choice: 'go' }] : '千葉と東京が両方場にいる時に使えます';
       },
-      resolve(s, p, choice, db, ev) { s.players[p].magicBonus += this.params.plus; ev.push({ type: 'magicBonus', player: p, plus: this.params.plus }); },
+      resolve(s, p, choice, db, ev) { addBuff(s, p, [findByNo(s, p, N.千葉)], this.params.atk, 1, this.id, ev); },
+    },
+    bridge('m_shimanami', 'しまなみ海道', N.広島, N.愛媛, '広島・愛媛'),
+    bridge('m_setoohashi', '瀬戸大橋', N.岡山, N.香川, '岡山・香川'),
+    bridge('m_akashi', '明石海峡大橋', N.兵庫, N.徳島, '兵庫・徳島'),
+    {
+      id: 'm_ohenro', kind: 'magic', name: '四国八十八箇所',
+      text: '自分の場の四国の県(徳島・香川・愛媛・高知)すべて、攻撃力が2倍。4県そろっていれば、さらにカードを2枚引く',
+      params: { atk: 2, draw: 2 },
+      options(s, p, db) {
+        const us = SHIKOKU.map(no => findByNo(s, p, no)).filter(Boolean);
+        if (!us.length) return '四国の県が場にいません';
+        return [{ label: `四国の県 ${us.length}体の攻撃力${xLabel(this.params.atk)}${us.length === 4 ? `、${this.params.draw}枚引く` : ''}`, choice: 'go' }];
+      },
+      resolve(s, p, choice, db, ev) {
+        const us = SHIKOKU.map(no => findByNo(s, p, no)).filter(Boolean);
+        addBuff(s, p, us, this.params.atk, 1, this.id, ev);
+        if (us.length === 4) draw(s, p, this.params.draw, ev, false);
+      },
+    },
+    {
+      id: 'm_sankei', kind: 'magic', name: '日本三景',
+      text: '宮城(松島)・京都(天橋立)・広島(宮島)のうち、自分の場にいる県の数だけカードを引く。3県そろっていれば、3県の攻撃力も2倍',
+      params: { atk: 2 },
+      options(s, p, db) {
+        const n = SANKEI.filter(no => findByNo(s, p, no)).length;
+        return n ? [{ label: `${n}枚引く${n === 3 ? `、3県の攻撃力${xLabel(this.params.atk)}` : ''}`, choice: 'go' }] : '宮城・京都・広島のどれかが場にいる時に使えます';
+      },
+      resolve(s, p, choice, db, ev) {
+        const us = SANKEI.map(no => findByNo(s, p, no)).filter(Boolean);
+        if (us.length === 3) addBuff(s, p, us, this.params.atk, 1, this.id, ev);
+        draw(s, p, us.length, ev, false);
+      },
+    },
+    {
+      id: 'm_meien', kind: 'magic', name: '日本三名園',
+      text: '自分の場の茨城(偕楽園)・石川(兼六園)・岡山(後楽園)の防御力が2倍',
+      params: { def: 2 },
+      options(s, p, db) {
+        const us = MEIEN.map(no => findByNo(s, p, no)).filter(Boolean);
+        return us.length ? [{ label: `${names(db, us.map(u => unitNo(s, u)))}の防御力${xLabel(this.params.def)}`, choice: 'go' }] : '茨城・石川・岡山のどれかが場にいる時に使えます';
+      },
+      resolve(s, p, choice, db, ev) { addBuff(s, p, MEIEN.map(no => findByNo(s, p, no)).filter(Boolean), 1, this.params.def, this.id, ev); },
+    },
+    {
+      id: 'm_meisen', kind: 'magic', name: '日本三名泉',
+      text: '自分の場の群馬(草津)・岐阜(下呂)・兵庫(有馬)1体につき、ライフが50兆回復する',
+      params: { heal: 50e12 },
+      options(s, p, db) {
+        const n = MEISEN.filter(no => findByNo(s, p, no)).length;
+        return n ? [{ label: `ライフを${n * this.params.heal / 1e12}兆回復`, choice: 'go' }] : '群馬・岐阜・兵庫のどれかが場にいる時に使えます';
+      },
+      resolve(s, p, choice, db, ev) { heal(s, p, MEISEN.filter(no => findByNo(s, p, no)).length * this.params.heal, ev); },
+    },
+    {
+      id: 'm_tohokumatsuri', kind: 'magic', name: '東北三大祭り',
+      text: '自分の場に青森(ねぶた)・秋田(竿燈)・宮城(七夕)がそろっていれば、3県の攻撃力が3倍',
+      params: { atk: 3 },
+      options(s, p, db) {
+        const miss = MATSURI.filter(no => !findByNo(s, p, no));
+        return miss.length ? `あと ${names(db, miss)} が足りません` : [{ label: `3県の攻撃力${xLabel(this.params.atk)}`, choice: 'go' }];
+      },
+      resolve(s, p, choice, db, ev) { addBuff(s, p, MATSURI.map(no => findByNo(s, p, no)), this.params.atk, 1, this.id, ev); },
+    },
+    {
+      id: 'm_gyoza', kind: 'magic', name: '餃子日本一争い',
+      text: '自分の場の栃木(宇都宮)・静岡(浜松)・宮崎から1体をランダムに選び、攻撃力を3倍にする',
+      params: { atk: 3 },
+      options(s, p, db) {
+        return GYOZA.some(no => findByNo(s, p, no)) ? [{ label: `栃木・静岡・宮崎から1体の攻撃力${xLabel(this.params.atk)}(ランダム)`, choice: 'go' }] : '栃木・静岡・宮崎のどれかが場にいる時に使えます';
+      },
+      resolve(s, p, choice, db, ev) {
+        const us = GYOZA.map(no => findByNo(s, p, no)).filter(Boolean);
+        addBuff(s, p, [us[Math.floor(rand(s) * us.length)]], this.params.atk, 1, this.id, ev);
+      },
+    },
+    {
+      id: 'm_fuji', kind: 'magic', name: '富士山はどっちの県?',
+      text: '自分の場に山梨か静岡がいれば、その攻撃力が2倍。両方いれば、代わりに相手の県を1体破壊できる',
+      params: { atk: 2 },
+      options(s, p, db) {
+        const us = FUJI.map(no => findByNo(s, p, no)).filter(Boolean);
+        if (!us.length) return '山梨か静岡が場にいる時に使えます';
+        const buff = { label: `${names(db, us.map(u => unitNo(s, u)))}の攻撃力${xLabel(this.params.atk)}`, choice: 'buff' };
+        if (us.length < 2) return [buff];
+        const tg = targets(s, other(p));
+        return tg.length ? tg.map(u => ({ label: `相手の${db[unitNo(s, u)].name}を破壊する`, choice: u.id })) : [buff];
+      },
+      resolve(s, p, choice, db, ev) {
+        if (choice === 'buff') addBuff(s, p, FUJI.map(no => findByNo(s, p, no)).filter(Boolean), this.params.atk, 1, this.id, ev);
+        else destroyUnit(s, other(p), choice, ev, 'smash');
+      },
+    },
+    {
+      id: 'm_miryokudo', kind: 'magic', name: '魅力度最下位からの逆襲',
+      text: '自分のライフが相手より少ない時、自分の場の茨城の攻撃力が3倍',
+      params: { atk: 3 },
+      options(s, p, db) {
+        if (!findByNo(s, p, N.茨城)) return '茨城が場にいる時に使えます';
+        if (s.players[p].life >= s.players[other(p)].life) return '自分のライフが相手より少ない時に使えます';
+        return [{ label: `茨城の攻撃力${xLabel(this.params.atk)}`, choice: 'go' }];
+      },
+      resolve(s, p, choice, db, ev) { addBuff(s, p, [findByNo(s, p, N.茨城)], this.params.atk, 1, this.id, ev); },
+    },
+    {
+      id: 'm_osakato', kind: 'magic', name: '大阪都構想',
+      text: '自分の場に大阪がいる時に使う。50%で大阪の攻撃力が3倍。外れたら何も起きない',
+      params: { atk: 3, rate: 0.5 },
+      options(s, p, db) {
+        return findByNo(s, p, N.大阪) ? [{ label: `住民投票! ${this.params.rate * 100}%で大阪の攻撃力${xLabel(this.params.atk)}`, choice: 'go' }] : '大阪が場にいる時に使えます';
+      },
+      resolve(s, p, choice, db, ev) {
+        const win = rand(s) < this.params.rate;
+        ev.push({ type: 'luck', player: p, win, text: win ? '賛成多数で可決!' : '否決…何も起きない' });
+        if (win) addBuff(s, p, [findByNo(s, p, N.大阪)], this.params.atk, 1, this.id, ev);
+      },
+    },
+    {
+      id: 'm_biwako', kind: 'magic', name: '琵琶湖の水止めたろか',
+      text: '自分の場に滋賀がいる時、相手の場の京都・大阪の攻撃力が半分になる',
+      params: { atk: 0.5 },
+      options(s, p, db) {
+        if (!findByNo(s, p, N.滋賀)) return '滋賀が場にいる時に使えます';
+        const us = targets(s, other(p)).filter(u => [N.京都, N.大阪].includes(unitNo(s, u)));
+        return us.length ? [{ label: `相手の${names(db, us.map(u => unitNo(s, u)))}の攻撃力${xLabel(this.params.atk)}`, choice: 'go' }] : '相手の場に京都か大阪がいません';
+      },
+      resolve(s, p, choice, db, ev) {
+        addBuff(s, other(p), targets(s, other(p)).filter(u => [N.京都, N.大阪].includes(unitNo(s, u))), this.params.atk, 1, this.id, ev);
+      },
+    },
+    {
+      id: 'm_udon', kind: 'magic', name: 'うどん県',
+      text: '自分の場の香川の攻撃力と防御力が2倍',
+      params: { atk: 2, def: 2 },
+      options(s, p, db) { return findByNo(s, p, N.香川) ? [{ label: `香川の攻撃力・防御力${xLabel(this.params.atk)}`, choice: 'go' }] : '香川が場にいる時に使えます'; },
+      resolve(s, p, choice, db, ev) { addBuff(s, p, [findByNo(s, p, N.香川)], this.params.atk, this.params.def, this.id, ev); },
+    },
+    {
+      id: 'm_koshihikari', kind: 'magic', name: 'コシヒカリ',
+      text: '自分の場の新潟の防御力が2倍になり、カードを1枚引く',
+      params: { def: 2, draw: 1 },
+      options(s, p, db) { return findByNo(s, p, N.新潟) ? [{ label: `新潟の防御力${xLabel(this.params.def)}、${this.params.draw}枚引く`, choice: 'go' }] : '新潟が場にいる時に使えます'; },
+      resolve(s, p, choice, db, ev) { addBuff(s, p, [findByNo(s, p, N.新潟)], 1, this.params.def, this.id, ev); draw(s, p, this.params.draw, ev, false); },
+    },
+    {
+      id: 'm_ocha', kind: 'magic', name: 'お茶の日本一交代',
+      text: '自分の場の静岡か鹿児島の攻撃力が2倍。両方いれば、鹿児島だけが3倍(2024年に生産量で鹿児島が初の1位)',
+      params: { one: 2, both: 3 },
+      options(s, p, db) {
+        const sz = findByNo(s, p, N.静岡), kg = findByNo(s, p, N.鹿児島);
+        if (sz && kg) return [{ label: `鹿児島の攻撃力${xLabel(this.params.both)}`, choice: 'go' }];
+        if (sz || kg) return [{ label: `${sz ? '静岡' : '鹿児島'}の攻撃力${xLabel(this.params.one)}`, choice: 'go' }];
+        return '静岡か鹿児島が場にいる時に使えます';
+      },
+      resolve(s, p, choice, db, ev) {
+        const sz = findByNo(s, p, N.静岡), kg = findByNo(s, p, N.鹿児島);
+        if (sz && kg) addBuff(s, p, [kg], this.params.both, 1, this.id, ev);
+        else addBuff(s, p, [sz || kg], this.params.one, 1, this.id, ev);
+      },
+    },
+    {
+      id: 'm_tobichi', kind: 'magic', name: '飛び地の村',
+      text: '自分の場の和歌山は、次の相手のターンが終わるまで、相手のマジックの対象にならない(北山村は全国でただ一つの飛び地の村)',
+      options(s, p, db) { return findByNo(s, p, N.和歌山) ? [{ label: '和歌山を相手のマジックから守る', choice: 'go' }] : '和歌山が場にいる時に使えます'; },
+      resolve(s, p, choice, db, ev) {
+        const u = findByNo(s, p, N.和歌山);
+        u.guardUntil = s.active === p ? s.turn + 1 : s.turn + 2;
+        ev.push({ type: 'guard', player: p, unitId: u.id, no: unitNo(s, u) });
+      },
+    },
+    {
+      id: 'm_kurofune', kind: 'magic', name: '黒船来航',
+      text: '自分の場に神奈川(浦賀)がいる時、相手の県を1体、持ち主の手札に戻す',
+      options(s, p, db) {
+        if (!findByNo(s, p, N.神奈川)) return '神奈川が場にいる時に使えます';
+        const tg = targets(s, other(p));
+        return tg.length ? tg.map(u => ({ label: `相手の${db[unitNo(s, u)].name}を手札に戻す`, choice: u.id })) : '相手の場に対象にできる県がいません';
+      },
+      resolve(s, p, choice, db, ev) { bounce(s, other(p), choice, ev); },
+    },
+    {
+      id: 'm_sengu', kind: 'magic', name: '式年遷宮',
+      text: '自分の場に三重(伊勢)がいる時、自分の県を1体墓地に送り、同じ星の県を山札からランダムに特殊召喚する',
+      options(s, p, db) {
+        if (!findByNo(s, p, N.三重)) return '三重が場にいる時に使えます';
+        const us = s.players[p].field.filter(u => deckPrefs(s, p, db, db[unitNo(s, u)].level).length);
+        return us.length ? us.map(u => ({ label: `${db[unitNo(s, u)].name}を墓地に送り、山札から星${db[unitNo(s, u)].level}の県を特殊召喚`, choice: u.id })) : '山札に同じ星の県がいません';
+      },
+      resolve(s, p, choice, db, ev) {
+        const u = findUnit(s, p, choice);
+        const pool = deckPrefs(s, p, db, db[unitNo(s, u)].level);
+        destroyUnit(s, p, choice, ev, 'effect');
+        specialSummon(s, p, pool[Math.floor(rand(s) * pool.length)], ev);
+      },
+    },
+    {
+      id: 'm_keikakuunkyu', kind: 'magic', name: '計画運休',
+      text: '次に相手から受ける攻撃を1回だけ無効にする',
+      options(s, p, db) { return [{ label: '次の相手の攻撃を1回無効にする', choice: 'go' }]; },
+      resolve(s, p, choice, db, ev) { s.players[p].barrier++; ev.push({ type: 'barrier', player: p, count: s.players[p].barrier }); },
+    },
+    {
+      id: 'm_haihan', kind: 'magic', name: '廃藩置県',
+      text: 'お互いの場の県をすべて山札の一番下に戻す。それぞれ戻した枚数だけカードを引く',
+      options(s, p, db) {
+        return s.players.some(pl => pl.field.length) ? [{ label: 'お互いの場の県をすべて山札に戻し、同じ枚数を引く', choice: 'go' }] : '場に県がいません';
+      },
+      resolve(s, p, choice, db, ev) {
+        for (const q of [p, other(p)]) {
+          const pl = s.players[q];
+          let n = 0;
+          for (const u of pl.field) { pl.deck.push(...u.cards); n += u.cards.length; }
+          pl.field = [];
+          ev.push({ type: 'reset', player: q, count: n });
+          draw(s, q, n, ev, false);
+        }
+      },
     },
     {
       id: 'f_typhoon', kind: 'field', name: '台風上陸',
@@ -1149,11 +1419,16 @@ const fmt = n => Math.round(n).toLocaleString('ja-JP');
 const cho = n => (n / 1e12).toLocaleString('ja-JP', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '兆';
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+// cfgRev: 保存した設定の版。2 = マジック上限を撤廃した版(2026-11-23)。それより前に保存した設定の「2枚まで」は捨てる
+const CFG_REV = 2;
 function loadConfig() {
-  try { return Engine.mergeConfig(Engine.DEFAULT_CONFIG, JSON.parse(localStorage.getItem(CFG_KEY) || 'null')); }
-  catch (e) { return Engine.mergeConfig(Engine.DEFAULT_CONFIG); }
+  try {
+    const raw = JSON.parse(localStorage.getItem(CFG_KEY) || 'null');
+    if (raw && raw.cfgRev !== CFG_REV) delete raw.magicLimit;
+    return Engine.mergeConfig(Engine.DEFAULT_CONFIG, raw);
+  } catch (e) { return Engine.mergeConfig(Engine.DEFAULT_CONFIG); }
 }
-function saveConfig(c) { try { localStorage.setItem(CFG_KEY, JSON.stringify(c)); } catch (e) {} }
+function saveConfig(c) { try { localStorage.setItem(CFG_KEY, JSON.stringify(Object.assign({}, c, { cfgRev: CFG_REV }))); } catch (e) {} }
 
 let config = loadConfig();
 let state = null;
@@ -1276,6 +1551,11 @@ function pushLogInner(events, logLines) {
       case 'barrier': t = `　${pn(e.player)} は次の攻撃を無効にできる(残り${e.count}回)`; break;
       case 'negated': t = `<b>${pn(e.player)} が攻撃を無効にした!</b>`; break;
       case 'extraAttack': t = `　${nm(e.no)} はもう1回攻撃できる`; break;
+      case 'heal': t = `　${pn(e.player)} のライフが <b class="num">${fmt(e.amount)}</b> 回復 → <span class="num">${fmt(e.life)}</span>`; break;
+      case 'bounced': t = `　${pn(e.player)} の ${nm(e.no)} が手札に戻った${e.count > 1 ? `(${e.count}枚)` : ''}`; break;
+      case 'guard': t = `　${nm(e.no)} は相手のマジックの対象にならない`; break;
+      case 'luck': t = `　${e.win ? '<b>' : ''}${esc(e.text)}${e.win ? '</b>' : ''}`; break;
+      case 'reset': t = `　${pn(e.player)} の場の県${e.count}枚が山札に戻った`; break;
       case 'magicBonus': t = `　${pn(e.player)} のマジック上限 +${e.plus}`; break;
       case 'attack':
         t = e.direct
@@ -1378,6 +1658,7 @@ function tokBadges(st) {
     st.count > 1 ? `<b class="c-stack">${st.count}枚重ね ×${st.mult}</b>` : '',
     st.buffAtk && (st.buffAtk !== 1 || st.buffDef !== 1) ? `<b class="c-buff">マジック 攻×${+st.buffAtk.toFixed(3)}${st.buffDef !== 1 ? ` 防×${+st.buffDef.toFixed(3)}` : ''}</b>` : '',
     st.fieldAtk && (st.fieldAtk !== 1 || st.fieldDef !== 1) ? `<b class="c-fieldfx">フィールド 攻×${st.fieldAtk}${st.fieldDef !== 1 ? ` 防×${st.fieldDef}` : ''}</b>` : '',
+    st.guard ? '<b class="c-buff">マジック無効</b>' : '',
   ].join('');
 }
 // 場の県(小さいカード: 県の形と攻撃・防御だけ)
@@ -1893,7 +2174,7 @@ let overClosed = false;
 const SETTINGS = [
   { h: 'ルールの数字' },
   { key: 'startLife', label: 'プレイヤーのライフ', type: 'int' },
-  { key: 'magicLimit', label: 'マジックの使用上限', note: 'マジックはフェーズ4で実装。今は値の保存だけ', type: 'intOrNone' },
+  { key: 'magicLimit', label: 'マジックの使用上限', note: '標準は上限なし', type: 'intOrNone' },
   { key: 'startHand', label: '最初の手札枚数', type: 'int' },
   { key: 'deckSize', label: 'デッキ枚数', type: 'int' },
   { key: 'maxCopies', label: '同名カードの上限', type: 'int' },

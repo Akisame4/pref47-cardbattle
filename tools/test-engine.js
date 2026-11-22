@@ -190,11 +190,12 @@ const cast = (s, p, id, choice) => run(s, { type: 'cast', player: p, handUid: ha
 const castErr = (s, p, id, choice) => err(s, { type: 'cast', player: p, handUid: handId(s, p, id), choice });
 const FREE = { firstTurnAttack: true, handLimit: null, summonsPerTurn: 99, magicLimit: null, startHand: 10, tributeTable: { 1: [[]], 2: [[]], 3: [[]], 4: [[]] } };
 const summonAll = (s, p, names) => { for (const n of names) s = run(s, { type: 'summon', player: p, handUid: handOf(s, p, n), tributes: [] }); return s; };
-ok(E.SPELLS.filter(c => c.kind === 'magic').length === 10 && E.SPELLS.filter(c => c.kind === 'field').length === 3, 'マジック10枚・フィールド3枚');
+ok(E.SPELLS.filter(c => c.kind === 'magic').length === 32 && E.SPELLS.filter(c => c.kind === 'field').length === 3, 'マジック32枚・フィールド3枚');
 ok(E.SPELLS.every(c => DB[c.id] === c), 'DB にカードが入っている');
 
 // 枚数制限: 2枚まで、相手のターンに使った分も同じ枠
-s = game(['m_kannazuki', 'm_kannazuki', 'm_kannazuki', TT], ['m_kannazuki', TT], { summonsPerTurn: 9 });
+ok(E.DEFAULT_CONFIG.magicLimit === null, 'マジックの上限は標準でなし');
+s = game(['m_kannazuki', 'm_kannazuki', 'm_kannazuki', TT], ['m_kannazuki', TT], { summonsPerTurn: 9, magicLimit: 2 });
 s = summonAll(s, 0, ['鳥取']);
 s = cast(s, 0, 'm_kannazuki');
 s = cast(s, 0, 'm_kannazuki');
@@ -205,7 +206,7 @@ ok(/もう使えません/.test(castErr(s, 0, 'm_kannazuki')), '相手のター�
 s = run(s, { type: 'endTurn', player: 1 });
 s = cast(s, 0, 'm_kannazuki');
 ok(s.players[0].magicUsed === 1, '自分のターン開始で枠が戻る');
-s = game(['m_kannazuki', TT], [TT], { summonsPerTurn: 9 });
+s = game(['m_kannazuki', TT], [TT], { summonsPerTurn: 9, magicLimit: 2 });
 s = run(s, { type: 'endTurn', player: 0 });
 s = summonAll(s, 1, ['鳥取']);
 s = run(s, { type: 'endTurn', player: 1 });
@@ -291,12 +292,154 @@ ok(/もう攻撃/.test(err(s, { type: 'attack', player: 0, attackerId: unitOf(s,
 s = run(s, { type: 'attack', player: 0, attackerId: unitOf(s, 0, '鳥取').id, targetId: null });
 ok(/もう攻撃/.test(err(s, { type: 'attack', player: 0, attackerId: unitOf(s, 0, '鳥取').id, targetId: null })), '駅のない鳥取は1回');
 
-// 国内線需要増加
-s = game(['m_kokunaisen', 'm_kannazuki', 'm_kannazuki', 'm_kannazuki', TT], [], { summonsPerTurn: 9 });
-s = summonAll(s, 0, ['鳥取']);
+// 国内線需要増加(2枚引く)
+s = game(['m_kokunaisen', TT], [], FREE);
+const hk0 = s.players[0].hand.length;
 s = cast(s, 0, 'm_kokunaisen');
-s = cast(s, 0, 'm_kannazuki'); s = cast(s, 0, 'm_kannazuki'); s = cast(s, 0, 'm_kannazuki');
-ok(s.players[0].magicUsed === 4, '上限+2で計4枚');
+ok(s.players[0].hand.length === hk0 - 1 + 2, '国内線で2枚引く');
+
+// ---- 追加マジック(2026-11-23) ----
+const atkOf = (s, p, n) => E.unitStats(s, unitOf(s, p, n), DB).attack;
+const defOf = (s, p, n) => E.unitStats(s, unitOf(s, p, n), DB).defense;
+const baseAtk = n => DB[byName(n)].attack;
+// 千葉と東京
+s = game([byName('千葉'), T, 'm_chibatokyo', 'm_chibatokyo'], [], FREE);
+s = summonAll(s, 0, ['千葉']);
+ok(/両方/.test(castErr(s, 0, 'm_chibatokyo')), '千葉だけでは使えない');
+s = summonAll(s, 0, ['東京']);
+s = cast(s, 0, 'm_chibatokyo');
+ok(atkOf(s, 0, '千葉') === baseAtk('千葉') * 2 && atkOf(s, 0, '東京') === baseAtk('東京'), '千葉だけ2倍');
+// 橋(手札→山札の順で探す)
+s = E.createGame({ config: { ...FREE, startHand: 5 }, decks: [fill([byName('広島'), 'm_shimanami', 'm_setoohashi', 'm_akashi', byName('岡山'), byName('愛媛'), byName('香川')], 40), fill([], 40)], seed: 1, shuffle: false }).state;
+s = summonAll(s, 0, ['広島']);
+s = cast(s, 0, 'm_shimanami');
+ok(unitOf(s, 0, '愛媛') && s.players[0].summonsUsed === 1, 'しまなみ: 山札の愛媛を特殊召喚');
+ok(/どちらか/.test(castErr(s, 0, 'm_akashi')), '明石: 兵庫も徳島もいないと使えない');
+s = summonAll(s, 0, ['岡山']);
+s = cast(s, 0, 'm_setoohashi');
+ok(unitOf(s, 0, '香川'), '瀬戸大橋: 香川を特殊召喚');
+// 四国八十八箇所
+s = game(['徳島', '香川', '愛媛', '高知'].map(byName).concat(['m_ohenro', 'm_ohenro']), [], FREE);
+s = summonAll(s, 0, ['徳島', '香川', '愛媛']);
+let hb = s.players[0].hand.length;
+s = cast(s, 0, 'm_ohenro');
+ok(atkOf(s, 0, '徳島') === baseAtk('徳島') * 2 && s.players[0].hand.length === hb - 1, '3県なら2倍・ドローなし');
+s = summonAll(s, 0, ['高知']);
+hb = s.players[0].hand.length;
+s = cast(s, 0, 'm_ohenro');
+ok(atkOf(s, 0, '高知') === baseAtk('高知') * 2 && atkOf(s, 0, '徳島') === baseAtk('徳島') * 4 && s.players[0].hand.length === hb - 1 + 2, '4県そろうと2枚引く');
+// 日本三景
+s = game(['宮城', '京都', '広島'].map(byName).concat(['m_sankei', 'm_sankei']), [], FREE);
+s = summonAll(s, 0, ['宮城']);
+hb = s.players[0].hand.length;
+s = cast(s, 0, 'm_sankei');
+ok(s.players[0].hand.length === hb - 1 + 1 && atkOf(s, 0, '宮城') === baseAtk('宮城'), '1県なら1枚引くだけ');
+s = summonAll(s, 0, ['京都', '広島']);
+hb = s.players[0].hand.length;
+s = cast(s, 0, 'm_sankei');
+ok(s.players[0].hand.length === hb - 1 + 3 && atkOf(s, 0, '広島') === baseAtk('広島') * 2, '3県で3枚・攻撃力2倍');
+// 三名園・三名泉
+s = game([byName('石川'), byName('群馬'), byName('兵庫'), 'm_meien', 'm_meisen'], [], FREE);
+s = summonAll(s, 0, ['石川', '群馬', '兵庫']);
+s = cast(s, 0, 'm_meien');
+ok(defOf(s, 0, '石川') === Math.round(DB[byName('石川')].defense * 2) && atkOf(s, 0, '石川') === baseAtk('石川'), '三名園: 防御力だけ2倍');
+const life0 = s.players[0].life;
+s = cast(s, 0, 'm_meisen');
+ok(s.players[0].life === life0 + 100e12, '三名泉: 2県で100兆回復');
+// 東北三大祭り
+s = game(['青森', '秋田', '宮城'].map(byName).concat(['m_tohokumatsuri']), [], FREE);
+s = summonAll(s, 0, ['青森', '秋田']);
+ok(/宮城/.test(castErr(s, 0, 'm_tohokumatsuri')), '1県足りないと使えない');
+s = summonAll(s, 0, ['宮城']);
+s = cast(s, 0, 'm_tohokumatsuri');
+ok(atkOf(s, 0, '秋田') === baseAtk('秋田') * 3, '3県そろって3倍');
+// 餃子
+s = game([byName('栃木'), byName('宮崎'), 'm_gyoza'], [], FREE);
+s = summonAll(s, 0, ['栃木', '宮崎']);
+s = cast(s, 0, 'm_gyoza');
+ok((atkOf(s, 0, '栃木') === baseAtk('栃木') * 3) !== (atkOf(s, 0, '宮崎') === baseAtk('宮崎') * 3), '餃子: どちらか1体だけ3倍');
+// 富士山
+s = game([byName('山梨'), byName('静岡'), 'm_fuji', 'm_fuji'], [T, OS], FREE);
+s = summonAll(s, 0, ['山梨']);
+ok(E.castInfo(s, 0, handId(s, 0, 'm_fuji'), DB).options.length === 1, '山梨だけなら強化のみ');
+s = run(s, { type: 'endTurn', player: 0 });
+s = summonAll(s, 1, ['東京', '大阪']);
+s = run(s, { type: 'endTurn', player: 1 });
+s = summonAll(s, 0, ['静岡']);
+const fo = E.castInfo(s, 0, handId(s, 0, 'm_fuji'), DB).options;
+ok(fo.length === 2 && fo.every(o => /破壊/.test(o.label)), '両方いれば相手の県を選んで破壊');
+s = cast(s, 0, 'm_fuji', unitOf(s, 1, '東京').id);
+ok(!unitOf(s, 1, '東京') && unitOf(s, 1, '大阪'), '選んだ県だけ破壊');
+// 魅力度最下位
+s = game([byName('茨城'), 'm_miryokudo'], [], FREE);
+s = summonAll(s, 0, ['茨城']);
+ok(/ライフ/.test(castErr(s, 0, 'm_miryokudo')), 'ライフが同じなら使えない');
+s.players[0].life -= 1;
+s = cast(s, 0, 'm_miryokudo');
+ok(atkOf(s, 0, '茨城') === baseAtk('茨城') * 3, 'ライフが少なければ3倍');
+// 大阪都構想(何度か試して可決・否決の両方が出る)
+let wins = 0, loses = 0;
+for (let seed = 1; seed <= 40; seed++) {
+  let g = game([OS, 'm_osakato'], [], FREE, { seed });
+  g = summonAll(g, 0, ['大阪']);
+  g = cast(g, 0, 'm_osakato');
+  if (atkOf(g, 0, '大阪') === baseAtk('大阪') * 3) wins++; else if (atkOf(g, 0, '大阪') === baseAtk('大阪')) loses++;
+}
+ok(wins > 5 && loses > 5 && wins + loses === 40, '大阪都構想は当たり外れがある(' + wins + '勝' + loses + '敗)');
+// 琵琶湖
+s = game([byName('滋賀'), 'm_biwako'], [OS, byName('京都'), T], FREE);
+s = run(s, { type: 'endTurn', player: 0 });
+s = summonAll(s, 1, ['大阪', '京都', '東京']);
+s = run(s, { type: 'endTurn', player: 1 });
+ok(/滋賀/.test(castErr(s, 0, 'm_biwako')), '滋賀がいないと使えない');
+s = summonAll(s, 0, ['滋賀']);
+s = cast(s, 0, 'm_biwako');
+ok(atkOf(s, 1, '大阪') === baseAtk('大阪') / 2 && atkOf(s, 1, '京都') === baseAtk('京都') / 2 && atkOf(s, 1, '東京') === baseAtk('東京'), '相手の京都・大阪だけ半分');
+// うどん県・コシヒカリ・お茶
+s = game([KG, byName('新潟'), byName('静岡'), byName('鹿児島'), 'm_udon', 'm_koshihikari', 'm_ocha'], [], FREE);
+s = summonAll(s, 0, ['香川', '新潟', '静岡', '鹿児島']);
+s = cast(s, 0, 'm_udon');
+ok(atkOf(s, 0, '香川') === baseAtk('香川') * 2 && defOf(s, 0, '香川') === Math.round(DB[KG].defense * 2), 'うどん県: 攻防2倍');
+hb = s.players[0].hand.length;
+s = cast(s, 0, 'm_koshihikari');
+ok(defOf(s, 0, '新潟') === Math.round(DB[byName('新潟')].defense * 2) && s.players[0].hand.length === hb, 'コシヒカリ: 防御2倍・1枚引く');
+s = cast(s, 0, 'm_ocha');
+ok(atkOf(s, 0, '鹿児島') === baseAtk('鹿児島') * 3 && atkOf(s, 0, '静岡') === baseAtk('静岡'), 'お茶: 両方いれば鹿児島だけ3倍');
+// 飛び地の村 → 黒船の対象にならない
+s = game([byName('和歌山'), 'm_tobichi', TT], ['m_kurofune', byName('神奈川'), TT], FREE);
+s = summonAll(s, 0, ['和歌山']);
+s = cast(s, 0, 'm_tobichi');
+ok(E.unitStats(s, unitOf(s, 0, '和歌山'), DB).guard, '和歌山が守られている');
+s = run(s, { type: 'endTurn', player: 0 });
+s = summonAll(s, 1, ['神奈川']);
+ok(/対象/.test(castErr(s, 1, 'm_kurofune')), '守られた和歌山は黒船の対象にならない');
+s = run(s, { type: 'endTurn', player: 1 });
+ok(!E.unitStats(s, unitOf(s, 0, '和歌山'), DB).guard, '相手のターンが終われば守りは切れる');
+const handB = s.players[0].hand.length;
+s = cast(s, 1, 'm_kurofune');
+ok(!unitOf(s, 0, '和歌山') && s.players[0].hand.length === handB + 1 && s.cards[s.players[0].hand.at(-1)] === byName('和歌山'), '黒船: 持ち主の手札に戻る(相手のターンにも使える)');
+// 式年遷宮
+s = game([byName('三重'), TT, 'm_sengu'], [], { ...FREE, startHand: 3 });
+s = summonAll(s, 0, ['三重', '鳥取']);
+const fieldIds = s.players[0].field.map(u => u.id);
+s = cast(s, 0, 'm_sengu', unitOf(s, 0, '鳥取').id);
+const fresh = s.players[0].field.find(u => !fieldIds.includes(u.id));
+ok(s.players[0].field.length === 2 && fresh && DB[s.cards[fresh.cards[0]]].level === 1 && s.players[0].grave.some(u => s.cards[u] === TT), '式年遷宮: 同じ星の県が山札から出る');
+// 計画運休(条件なし)
+s = game(['m_keikakuunkyu'], [], FREE);
+s = cast(s, 0, 'm_keikakuunkyu');
+ok(s.players[0].barrier === 1, '計画運休: 攻撃無効1回');
+// 廃藩置県
+s = game([T, OS, 'm_haihan'], [H, H, KG], FREE);
+s = run(s, { type: 'endTurn', player: 0 });
+s = summonAll(s, 1, ['北海道', '北海道', '香川']);
+s = run(s, { type: 'endTurn', player: 1 });
+s = summonAll(s, 0, ['東京']);
+const h0 = s.players[0].hand.length, h1 = s.players[1].hand.length, d1 = s.players[1].deck.length;
+s = cast(s, 0, 'm_haihan');
+ok(!s.players[0].field.length && !s.players[1].field.length, '廃藩置県: お互いの場が空');
+ok(s.players[0].hand.length === h0 - 1 + 1 && s.players[1].hand.length === h1 + 3 && s.players[1].deck.length === d1, '戻した枚数(重ね含む)だけ引く');
+ok(s.cards[s.players[1].deck.at(-1)] === KG, '戻した県は山札の一番下');
 
 // フィールド
 s = game([byName('大阪'), 'f_typhoon', 'f_snow'], ['f_heat', TT], FREE);
