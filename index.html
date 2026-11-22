@@ -234,7 +234,8 @@ button.interrupt.on{background:var(--accent);color:#1a1a1a}
 /* 自分の手札(扇形) */
 .stage .hand{position:absolute;right:290px;bottom:-120px;zoom:.78;display:flex;align-items:flex-end;z-index:4}
 .stage .hand .card{flex:none;margin-left:-58px;transform:translateY(var(--dy)) rotate(var(--rot));transform-origin:50% 120%;transition:transform .12s}
-.stage .hand .card:hover,.stage .hand .card.selected{transform:translateY(-150px) scale(1.12);z-index:5}
+.stage .hand .card.selected,.stage .hand .card.lift{transform:translateY(-150px) scale(1.12);z-index:5}
+@media (hover:hover){.stage .hand .card:hover{transform:translateY(-150px) scale(1.12);z-index:5}}
 .stage .hand .card.ok{box-shadow:0 0 0 3px #6fe39a,0 5px 14px rgba(0,0,0,.55)}
 .stage .hand .card.selected{outline:none;box-shadow:0 0 0 4px #ffcc33,0 12px 30px rgba(0,0,0,.8)}
 .stage .hand .card.dragging{opacity:.25}
@@ -264,7 +265,7 @@ button.interrupt.on{background:var(--accent);color:#1a1a1a}
 .detail .card{width:190px}
 .detail-empty{width:190px;height:150px;border:2px dashed #2c3650;border-radius:10px;display:grid;place-items:center;text-align:center;font-size:12px;line-height:1.6;color:#55607a}
 .logpanel{position:absolute;left:0;top:56px;bottom:0;width:270px;height:auto;border-radius:0 12px 0 0;background:rgba(8,12,22,.9);border:1px solid #2c3650;z-index:5}
-.arrow{position:absolute;left:0;top:0;width:1600px;height:900px;pointer-events:none;z-index:7}
+.arrow{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:7}
 .arrow path{stroke:#ffcc33;stroke-width:6;fill:none;stroke-dasharray:14 8;marker-end:url(#ah);filter:drop-shadow(0 0 6px #ffcc33)}
 .hintbar{position:absolute;left:50%;top:436px;transform:translateX(-50%);font-size:13px;color:#fff;background:rgba(0,0,0,.55);padding:4px 14px;border-radius:14px;white-space:nowrap;z-index:3;pointer-events:none}
 .hintbar:empty{display:none}
@@ -332,6 +333,118 @@ button.interrupt.on{background:var(--accent);color:#1a1a1a}
 .dk-side > .meta{margin:0;flex:none}
 @media (max-width:1100px){.deckscreen{grid-template-columns:minmax(0,1fr) 300px}.dk-detail{display:none}}
 @media (max-width:760px){.deckscreen{grid-template-columns:1fr;height:auto}.dk-grid{max-height:70vh}.bars{max-height:300px}}
+/* ===== スマホ: 横向き(1100×520 の舞台) ===== */
+.stage.m-land{width:1100px;height:520px}
+.m-land .midline{left:160px;right:160px;top:266px}
+.m-land .topleft{left:8px;top:6px;gap:5px}
+.m-land .topleft button{font-size:12px;padding:5px 9px}
+.m-land .topleft .meta{display:none}
+.m-land .tok{width:104px;height:134px;padding:4px 5px;border-width:3px;border-radius:10px}
+.m-land .tok .t-name{font-size:12px}
+.m-land .tok .t-star{font-size:9px}
+.m-land .tok .t-map{height:72px}
+.m-land .tok .t-atk,.m-land .tok .t-def{width:54px;height:30px;font-size:13px;bottom:-15px}
+.m-land .tok .t-atk::before,.m-land .tok .t-def::before{font-size:8px;line-height:10px}
+.m-land .tok .c-badges b{font-size:9px}
+.m-land .tok .preview{font-size:11px;top:-24px;padding:2px 6px}
+.m-land .row{left:150px;right:150px;gap:14px}
+.m-land .row.tight{gap:2px}
+.m-land .row.opp{top:108px} .m-land .row.me{top:282px}
+.m-land .row-empty{height:134px;font-size:12px}
+.m-land .leader{gap:8px}
+.m-land .leader.opp{top:4px}
+.m-land .leader.me{left:290px;bottom:6px}
+.m-land .portrait{width:70px;height:70px;border-width:3px}
+.m-land .portrait .pn{font-size:12px;max-width:62px;margin-top:-10px}
+.m-land .portrait .life{font-size:14px;padding:1px 8px;bottom:-10px}
+.m-land .portrait .barrier{font-size:10px}
+.m-land .piles{gap:5px;font-size:10px}
+.m-land .pile{width:36px;height:48px}
+.m-land .pile b{font-size:14px}
+.m-land .leader .res{font-size:11px;gap:2px}
+.m-land .leader .pips i{width:10px;height:10px}
+.m-land .ohand{top:-26px;right:170px}
+.m-land .ohand i{width:40px;height:56px;margin-left:-18px}
+.m-land .ohand.open{top:-150px;right:150px;zoom:.5}
+.m-land .hand{right:150px;bottom:-215px;zoom:.62}
+.m-land .hand .card.selected,.m-land .hand .card.lift{transform:translateY(-170px) scale(1.1)}
+.m-land .rightcol{right:8px;top:128px;width:132px;gap:6px}
+.m-land .rightcol .ph span{font-size:11px;padding:3px 0}
+.m-land .rightcol .slot{min-height:36px}
+.m-land .rightcol .slot button,.m-land .rightcol .tobattle{font-size:13px;padding:6px}
+.m-land .rightcol .note{font-size:10px}
+.m-land .rightcol .endbtn{height:82px;font-size:17px}
+.m-land .rightcol .side-btns button{padding:8px 4px;font-size:12px}
+.m-land .rightcol .turnno{font-size:11px}
+.m-land .fieldslot{left:8px;top:200px;width:140px;padding:5px 7px}
+.m-land .fieldslot b{font-size:13px} .m-land .fieldslot p{font-size:10px}
+.m-land .fieldslot .k{font-size:10px}
+.m-land .detail{display:none}
+.m-land .hintbar{top:255px;font-size:12px;padding:2px 10px}
+.m-land .banner{top:205px;height:80px;font-size:32px}
+.m-land .dmgpop{font-size:26px}
+.m-land .logpanel{top:40px;width:300px}
+
+/* ===== スマホ: 縦向き(600×1080 の舞台) ===== */
+.stage.m-port{width:600px;height:1250px}
+.m-port .midline{left:30px;right:30px;top:auto;bottom:618px}
+.m-port .topleft{left:8px;top:8px;gap:5px;flex-direction:column;align-items:flex-start}
+.m-port .topleft button{font-size:13px;padding:5px 9px}
+.m-port .topleft .meta{display:none}
+.m-port .tok{width:104px;height:134px;padding:4px 5px;border-width:3px;border-radius:10px}
+.m-port .tok .t-name{font-size:12px}
+.m-port .tok .t-star{font-size:9px}
+.m-port .tok .t-map{height:72px}
+.m-port .tok .t-atk,.m-port .tok .t-def{width:54px;height:30px;font-size:13px;bottom:-15px}
+.m-port .tok .t-atk::before,.m-port .tok .t-def::before{font-size:8px;line-height:10px}
+.m-port .tok .c-badges b{font-size:9px}
+.m-port .tok .preview{font-size:11px;top:-24px;padding:2px 6px}
+.m-port .row{left:8px;right:8px;gap:10px}
+.m-port .row.tight{gap:0}
+.m-port .row.opp{top:200px} .m-port .row.me{top:auto;bottom:430px}
+.m-port .row-empty{height:134px;font-size:13px}
+.m-port .leader{gap:10px}
+.m-port .leader.opp{top:10px}
+.m-port .leader.me{left:50%;bottom:290px;top:auto}
+.m-port .portrait{width:92px;height:92px}
+.m-port .portrait .pn{font-size:14px;max-width:80px}
+.m-port .portrait .life{font-size:16px;padding:1px 10px}
+.m-port .piles{gap:6px}
+.m-port .pile{width:44px;height:58px}
+.m-port .ohand{top:14px;right:12px;left:auto;transform:none;flex-direction:column}
+.m-port .ohand i{margin:-34px 0 0!important}
+.m-port .ohand i{width:34px;height:48px;margin-left:-16px}
+.m-port .ohand.open{top:-120px;left:auto;right:10px;transform:none;zoom:.5}
+.m-port .hand{right:auto;left:50%;transform:translateX(-50%);bottom:20px;zoom:.8}
+.m-port .hand .card.selected,.m-port .hand .card.lift{transform:translateY(-60px) scale(1.12)}
+.m-port .rightcol{right:10px;top:372px;width:160px;gap:6px}
+.m-port .rightcol .ph{display:none}
+.m-port .rightcol .slot{min-height:0}
+.m-port .rightcol .slot button,.m-port .rightcol .tobattle{font-size:13px;padding:6px}
+.m-port .rightcol .note{font-size:10px}
+.m-port .rightcol .endbtn{height:64px;font-size:17px}
+.m-port .rightcol .turnno{font-size:11px}
+.m-port .fieldslot{left:8px;top:385px;width:180px;padding:5px 7px}
+.m-port .fieldslot b{font-size:13px} .m-port .fieldslot p{font-size:10px}
+.m-port .detail{display:none}
+.m-port .hintbar{top:auto;bottom:592px;font-size:12px}
+.m-port .banner{top:420px;height:90px;font-size:34px}
+.m-port .logpanel{top:60px;width:420px}
+
+.m-port .hand .card{margin-left:-100px}
+.stage,.deckscreen{-webkit-touch-callout:none}
+.stage{touch-action:none}
+body{touch-action:manipulation;-webkit-text-size-adjust:100%}
+.topleft .menubtn,header .menuclose{display:none}
+body.m-game header .menuclose{display:inline-block}
+body.m-game .topleft .menubtn{display:inline-block}
+body.m-game header.top,body.m-game .credit{display:none}
+body.m-game .wrap.wide{padding:0}
+body.m-game .arena-wrap{border-radius:0}
+body.m-game.m-menu header.top{display:flex;position:fixed;left:0;right:0;top:0;z-index:40;background:rgba(10,14,24,.97);padding:8px 10px;margin:0;border-bottom:1px solid var(--line)}
+.peek{position:fixed;inset:0;background:rgba(0,0,0,.7);display:grid;place-items:center;z-index:70}
+.peek .card{width:230px;zoom:1.25}
+.peek p{position:fixed;bottom:14px;left:0;right:0;text-align:center;color:#b9c4dc;font-size:13px;margin:0}
 </style>
 </head>
 <body>
@@ -1125,6 +1238,7 @@ function act(action) {
   const r = Engine.apply(state, action, DB);
   if (!r.ok) { toast(r.error); return false; }
   state = r.state;
+  liftUid = null;
   collectFx(r.events);
   hitFx = [false, false];
   for (const e of r.events) if (e.type === 'damage') hitFx[e.player] = true;
@@ -1223,7 +1337,22 @@ function previewHTML(attUnit, tgtUnit) {
 
 // ---------- 対戦画面(シャドバ風の配置。dailies 1122-adbd で A) ----------
 // 1600×900 の舞台に絶対配置で並べ、画面の大きさに合わせて丸ごと拡大縮小する
-const STAGE_W = 1600, STAGE_H = 900;
+let STAGE_W = 1600, STAGE_H = 900;
+// スマホ(dailies 1122-a8cc で C): 小さい画面では向きで横用・縦用の舞台に切り替え、上のメニューをたたむ
+let stageMode = 'desk';
+const MODE_SIZE = { desk: [1600, 900], land: [1100, 520], port: [600, 1250] };
+const dropY = () => stageMode === 'port' ? STAGE_H - 300 : stageMode === 'land' ? 410 : 700; // 手札をこれより上で離すと出す
+function detectMode() {
+  const w = window.innerWidth, h = window.innerHeight;
+  if (Math.min(w, h) >= 560 && w >= 760) return 'desk';
+  return w > h ? 'land' : 'port';
+}
+let liftUid = null;       // スマホ: 1回目のタップで持ち上げた手札
+let lastPointerType = 'mouse';
+let press = null, pressFired = false; // 長押しで大きく表示
+// スマホ: 素早い2回タップはブラウザがダブルタップ扱いにして click を落とすので、盤面とデッキ一覧のタップは自分で click にする
+let tapStart = null, touchClickUntil = 0;
+const TAP_AREA = '.stage, .deckscreen .dk-grid, .deckscreen .bars';
 let logOpen = false;
 let fx = null;            // 次の描画で流す演出(ドロー・召喚・ダメージ・ターン開始)
 let drag = null;          // ドラッグ中のカード
@@ -1311,6 +1440,7 @@ function myHandHTML(p) {
     const ex = handEx(p, uid, inter);
     let h = anyCardHTML(state.cards[uid], ex);
     if (ex.ok) h = h.replace('class="card ', 'class="card ok ');
+    if (uid === liftUid) h = h.replace('class="card ', 'class="card lift ');
     return h.replace('class="card ', `style="--rot:${(off * 4).toFixed(1)}deg;--dy:${(off * off * 4).toFixed(1)}px" class="card `);
   }).join('');
   return `<div class="hand" data-hand-of="${p}">${cards}</div>`;
@@ -1359,11 +1489,11 @@ function hintText() {
   if (ui.mode === 'tribute') return `生け贄にする県を場から選んでください(${Engine.describeCombos(ui.combos)})`;
   if (ui.mode === 'attack') {
     const opp = state.players[1 - state.active];
-    return opp.field.length ? '攻撃先の県を選んでください(右クリックでやめる)' : '相手の場は空。相手のアイコンを選ぶと直接攻撃';
+    return opp.field.length ? `攻撃先の県を選んでください(${lastPointerType === 'mouse' ? '右クリック' : '「選び直す」'}でやめる)` : '相手の場は空。相手のアイコンを選ぶと直接攻撃';
   }
   if (online() && state.active !== net.me) return '相手の番です。手札のマジックは割り込みで使えます';
   if (ui.interrupt != null) return `${PNAME[ui.interrupt]} の手札からマジックを選んでください`;
-  if (state.phase === 'main') return '手札の県を場へドラッグ(またはクリック)で召喚';
+  if (state.phase === 'main') return lastPointerType === 'mouse' ? '手札の県を場へドラッグ(またはクリック)で召喚' : '手札をタップで持ち上げ、もう一度タップかドラッグで出す';
   if (state.phase === 'battle') return '自分の県を相手の県へドラッグして攻撃';
   return '';
 }
@@ -1414,6 +1544,7 @@ function arenaHTML() {
   return `<div class="arena-wrap" id="arena-wrap"><div class="stage" id="stage">
     <div class="midline"></div>
     <div class="topleft">
+      <button class="menubtn" data-act="toggleMenu">メニュー</button>
       <button data-act="toggleLog" class="${logOpen ? 'on' : ''}">ログ</button>
       ${state.phase === 'over' ? '' : `<button class="danger" data-act="concede">${concedeLabel}</button>`}
       ${online() ? `<span class="meta">合言葉「${esc(net.phrase)}」${EMU ? ' エミュレータ' : ''}</span>` : ''}
@@ -1450,6 +1581,7 @@ function render() {
       ${screen === 'online' ? '' : '<button data-act="new">新しいゲーム</button>'}
       <button data-act="settings">設定</button>
       <span class="spacer"></span>
+      <button class="menuclose" data-act="toggleMenu">閉じる</button>
       ${screen === 'play' ? `<label class="test-tag"><input type="checkbox" data-act="showAll" ${showAllHands ? 'checked' : ''}>テスト: 両方の手札を表示</label>` : ''}
     </header>
     ${screen === 'deck' ? deckScreenHTML() : screen === 'online' && !inGame ? onlineHTML() : inGame ? arenaHTML() : ''}
@@ -1461,7 +1593,7 @@ function render() {
   if (log) log.scrollTop = log.scrollHeight;
   app.querySelectorAll('[data-keep-scroll]').forEach(el => { if (keep[el.dataset.keepScroll] != null) el.scrollTop = keep[el.dataset.keepScroll]; });
   if (inGame) { fitStage(); runFx(); drawArrow(); }
-  else fx = null;
+  else { fx = null; document.body.classList.remove('m-game', 'm-menu'); }
 }
 
 // 舞台を画面に合わせて拡大縮小
@@ -1469,8 +1601,16 @@ let stageK = 1;
 function fitStage() {
   const wrap = document.getElementById('arena-wrap'), stage = document.getElementById('stage');
   if (!wrap || !stage) return;
+  stageMode = detectMode();
+  [STAGE_W, STAGE_H] = MODE_SIZE[stageMode];
+  if (stageMode === 'port') STAGE_H = Math.max(1150, Math.round(600 * window.innerHeight / window.innerWidth)); // 縦長のスマホでは下(手札の上)を伸ばす
+  document.body.classList.toggle('m-game', stageMode !== 'desk');
+  stage.classList.toggle('m-land', stageMode === 'land');
+  stage.classList.toggle('m-port', stageMode === 'port');
+  stage.style.width = STAGE_W + 'px'; stage.style.height = STAGE_H + 'px';
+  const arrow = document.getElementById('arrow'); if (arrow) arrow.setAttribute('viewBox', `0 0 ${STAGE_W} ${STAGE_H}`);
   const top = wrap.getBoundingClientRect().top + window.scrollY;
-  const availH = Math.max(200, window.innerHeight - top - 40); // 下の出典表示のぶん空ける
+  const availH = stageMode === 'desk' ? Math.max(200, window.innerHeight - top - 40) : window.innerHeight - top; // デスクトップは下の出典表示のぶん空ける
   stageK = Math.max(0.3, Math.min(wrap.clientWidth / STAGE_W, availH / STAGE_H));
   stage.style.transform = `scale(${stageK})`;
   wrap.style.height = `${STAGE_H * stageK}px`;
@@ -1826,8 +1966,11 @@ function readSettings() {
 // ---------- 入力 ----------
 document.addEventListener('click', e => {
   if (suppressClick) return;
+  if (e.isTrusted && Date.now() < touchClickUntil && e.target.closest(TAP_AREA)) return; // 自前の click を送った後のブラウザの click
+  const pk = e.target.closest('.peek'); if (pk) { pk.remove(); return; }
   const t = e.target.closest('[data-act],[data-hand],[data-unit],[data-leader],[data-add],[data-remove]');
   if (!t) return;
+  if (t.closest('header.top') && t.dataset.act !== 'showAll' && t.dataset.act !== 'toggleMenu') document.body.classList.remove('m-menu');
   const a = t.dataset.act;
   if (a !== 'deckDelete' && deleteArm) { deleteArm = false; if (!a && !t.dataset.add && !t.dataset.remove) render(); }
   const cid = v => /^\d+$/.test(v) ? Number(v) : v;
@@ -1888,6 +2031,7 @@ document.addEventListener('click', e => {
       case 'closeOver': case 'closeOverBtn': overClosed = true; render(); return;
       case 'cancel': resetUI(); render(); return;
       case 'toggleLog': logOpen = !logOpen; render(); return;
+      case 'toggleMenu': document.body.classList.toggle('m-menu'); return;
       case 'chip': { const c = CHIPS[Number(t.dataset.i)]; filt.kind = c[0]; filt.level = c[1]; render(); return; }
       case 'toBattle': act({ type: 'toBattle', player: state.active }); return;
       case 'endTurn': act({ type: 'endTurn', player: state.active }); return;
@@ -1905,7 +2049,17 @@ document.addEventListener('click', e => {
   if (!state || state.phase === 'over') return;
   if (screen === 'deck') return;
   if (online() && net.busy) return;
-  if (t.dataset.hand) { handClick(Number(t.dataset.owner), t.dataset.hand); return; }
+  if (t.dataset.hand) {
+    // スマホ: 自分の手札は1回目のタップで持ち上げるだけ。もう一度タップで出す
+    if (lastPointerType !== 'mouse' && t.closest('.stage .hand') && liftUid !== t.dataset.hand) {
+      liftUid = t.dataset.hand;
+      document.querySelectorAll('.stage .hand .card.lift').forEach(x => x.classList.remove('lift'));
+      t.classList.add('lift');
+      return;
+    }
+    liftUid = null;
+    handClick(Number(t.dataset.owner), t.dataset.hand); return;
+  }
   if (t.dataset.unit) { unitClick(Number(t.dataset.owner), t.dataset.unit); return; }
   if (t.dataset.leader) leaderClick(Number(t.dataset.leader));
 });
@@ -1949,7 +2103,30 @@ function leaderClick(owner) {
 }
 
 // ---------- ドラッグ(手札を場へ / 自分の県を相手へ) ----------
+// 長押しでカードを大きく表示(スマホでカーソルを合わせる代わり)
+function showPeek(el) {
+  let html = '';
+  if (el.dataset.card != null) html = deckFullCard(/^\d+$/.test(el.dataset.card) ? Number(el.dataset.card) : el.dataset.card);
+  else if (el.dataset.hand != null && state && state.cards[el.dataset.hand] != null) html = anyCardHTML(state.cards[el.dataset.hand], {});
+  else if (el.dataset.unit != null && state) {
+    const u = Engine.findUnit(state, Number(el.dataset.owner), el.dataset.unit);
+    if (u) html = cardHTML(Engine.unitStats(state, u, DB), {});
+  }
+  if (!html) return false;
+  const p = document.createElement('div');
+  p.className = 'peek';
+  p.innerHTML = html + '<p>タップで閉じる</p>';
+  document.body.appendChild(p);
+  return true;
+}
 document.addEventListener('pointerdown', e => {
+  lastPointerType = e.pointerType || 'mouse';
+  tapStart = lastPointerType !== 'mouse' && e.target.closest(TAP_AREA) ? { x: e.clientX, y: e.clientY, el: e.target } : null;
+  if (press) { clearTimeout(press.t); press = null; }
+  const pc = e.target.closest('.stage [data-hand], .stage [data-unit], .deckscreen [data-card]');
+  if (pc && lastPointerType !== 'mouse' && !document.querySelector('.peek')) {
+    press = { x: e.clientX, y: e.clientY, t: setTimeout(() => { press = null; if (showPeek(pc)) { pressFired = true; drag = null; } }, 450) };
+  }
   if (e.button !== 0 || !state || state.phase === 'over' || !document.getElementById('stage')) return;
   if (online() && net.busy) return;
   const h = e.target.closest('.stage .hand [data-hand].clickable');
@@ -1959,6 +2136,7 @@ document.addEventListener('pointerdown', e => {
     drag = { kind: 'unit', id: u.dataset.unit, owner: Number(u.dataset.owner), sx: e.clientX, sy: e.clientY, moved: false };
 });
 document.addEventListener('pointermove', e => {
+  if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) { clearTimeout(press.t); press = null; }
   if (!document.getElementById('stage')) return;
   pointerAt = toStage(e.clientX, e.clientY);
   if (drag && !drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 8) {
@@ -1977,13 +2155,24 @@ document.addEventListener('pointermove', e => {
   if (ui.mode === 'attack') drawArrow();
 });
 document.addEventListener('pointerup', e => {
+  if (press) { clearTimeout(press.t); press = null; }
+  const tap = tapStart; tapStart = null;
+  if (pressFired) { pressFired = false; suppressClick = true; setTimeout(() => { suppressClick = false; }, 0); drag = null; return; }
+  if (tap && !(drag && drag.moved) && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 12) {
+    drag = null;
+    touchClickUntil = Date.now() + 700;
+    const peek = document.querySelector('.peek');
+    if (peek) { peek.remove(); return; }
+    tap.el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })); // SVG の中でも届くように
+    return;
+  }
   const d = drag; drag = null;
   if (!d || !d.moved) return;
   suppressClick = true; setTimeout(() => { suppressClick = false; }, 0);
   if (d.ghost) d.ghost.remove();
   if (d.el) d.el.classList.remove('dragging');
   const at = toStage(e.clientX, e.clientY);
-  if (d.kind === 'hand') { if (at.y < 700) handClick(d.owner, d.uid); return; }
+  if (d.kind === 'hand') { liftUid = null; if (at.y < dropY()) handClick(d.owner, d.uid); else render(); return; }
   const under = document.elementFromPoint(e.clientX, e.clientY);
   const tu = under && under.closest('.stage [data-unit]');
   const tl = under && under.closest('.stage [data-leader]');
@@ -1991,6 +2180,7 @@ document.addEventListener('pointerup', e => {
   else if (tl && Number(tl.dataset.leader) !== state.active) leaderClick(Number(tl.dataset.leader));
 });
 document.addEventListener('contextmenu', e => {
+  if (lastPointerType !== 'mouse') { if (e.target.closest('.stage, .deckscreen')) e.preventDefault(); return; } // スマホの長押しは大きく表示に使う
   const dk = e.target.closest('.deckscreen [data-add], .deckscreen [data-remove]');
   if (dk) { e.preventDefault(); const v = dk.dataset.add || dk.dataset.remove; removeCard(/^\d+$/.test(v) ? Number(v) : v); return; }
   if (!e.target.closest('.stage') || !ui.mode) return;
