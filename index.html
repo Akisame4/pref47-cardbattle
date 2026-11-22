@@ -105,8 +105,6 @@ header.top h1{font-size:18px;margin:0 12px 0 0}
 .tabs{display:flex;gap:4px;background:#0e1117;border-radius:10px;padding:3px;margin-right:6px}
 .tabs button{border:none;background:transparent;color:var(--sub);padding:6px 14px}
 .tabs button.on{background:var(--panel2);color:var(--text);box-shadow:0 0 0 1px var(--accent) inset}
-.deckscreen{display:grid;grid-template-columns:1fr 340px;gap:12px;align-items:start}
-@media (max-width:900px){.deckscreen{grid-template-columns:1fr}}
 .pool-panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
 .filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
 .filters input[type=search]{width:160px}
@@ -173,7 +171,7 @@ button.interrupt.on{background:var(--accent);color:#1a1a1a}
 .tok.lv3{--frame:linear-gradient(135deg,#7a5a00,#ffe27a 30%,#b8860b 55%,#fff1b0 80%,#7a5a00);--metal:#ffd84a}
 .tok.lv4{--frame:conic-gradient(from 200deg,#ff5f6d,#ffc371,#f9f871,#6dffb0,#5fd3ff,#8a7dff,#ff7de9,#ff5f6d);--metal:#fff}
 .tok .t-top{display:flex;justify-content:space-between;align-items:center;gap:2px}
-.tok .t-name{font-weight:800;font-size:13px;color:#fff;text-shadow:0 1px 0 #000;white-space:nowrap}
+.tok .t-name{font-weight:800;font-size:13px;color:#fff;text-shadow:0 1px 0 #000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .tok .t-star{font-size:11px;letter-spacing:-1px;white-space:nowrap;background:var(--frame);-webkit-background-clip:text;background-clip:text;color:transparent}
 .tok .t-map{position:relative;height:100px;margin-top:3px;border-radius:6px;background:radial-gradient(circle at 50% 45%,#1f3a6e,#0b1328 75%);border:1px solid var(--metal)}
 .tok .t-map svg{width:100%;height:100%;display:block}
@@ -275,6 +273,65 @@ button.interrupt.on{background:var(--accent);color:#1a1a1a}
 .banner{position:absolute;left:0;right:0;top:400px;height:100px;display:grid;place-items:center;font-size:44px;font-weight:900;letter-spacing:.15em;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.8)}
 .banner.mine{background:linear-gradient(90deg,transparent,rgba(40,90,180,.85) 25%,rgba(40,90,180,.85) 75%,transparent)}
 .banner.theirs{background:linear-gradient(90deg,transparent,rgba(160,40,40,.85) 25%,rgba(160,40,40,.85) 75%,transparent)}
+/* ===== デッキ構築(シャドバ風。dailies 1122-0251 で C) ===== */
+.deckscreen{display:grid;grid-template-columns:250px minmax(0,1fr) 330px;grid-template-rows:minmax(0,1fr);height:calc(100vh - 110px);min-height:560px;border-radius:12px;overflow:hidden;
+  background:radial-gradient(ellipse 80% 70% at 40% 40%,#1d2b4d,#0b1020 80%);border:1px solid #26314d}
+.dk-detail{padding:14px 12px;background:rgba(6,10,20,.55);border-right:1px solid #26314d;overflow:auto}
+.dk-detail h4{margin:0 0 8px;font-size:12px;color:#8d98b3}
+.dk-detail .card{width:222px}
+.dk-main{display:flex;flex-direction:column;min-width:0;padding:12px 14px 0}
+.dk-main .filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.dk-main .filters input[type=search]{width:170px;border-radius:18px;padding:7px 12px}
+.dk-main .filters select{border-radius:8px}
+.chip{padding:6px 13px;border-radius:18px;border:1px solid #3a4a6e;background:#121a2e;font-size:13px;color:#9fb0d0}
+.chip.st{color:#ffd84a;letter-spacing:-1px}
+.chip.on{background:#ffcc33;color:#1a1a1a;border-color:#ffcc33}
+.dk-grid{flex:1;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,136px);gap:24px 16px;align-content:start;justify-content:start;padding:6px 6px 30px}
+.cell{position:relative;cursor:pointer}
+.cell .tok{transition:transform .1s,box-shadow .1s}
+.cell:hover .tok{transform:translateY(-4px)}
+.cell.in .tok{box-shadow:0 0 0 2px #ffcc33,0 8px 18px rgba(0,0,0,.6)}
+.cell.full:not(.in) .tok{opacity:.45}
+.cell .cnt{position:absolute;left:50%;transform:translateX(-50%);bottom:-22px;font-size:13px;font-weight:900;background:#ffcc33;color:#1a1a1a;border-radius:10px;padding:0 10px;box-shadow:0 2px 6px rgba(0,0,0,.6);z-index:3}
+.tok.sp{--frame:linear-gradient(135deg,#1d5e3a,#7fe0a6 30%,#2e8b57 55%,#b8f5cf 80%,#1d5e3a);--metal:#7fe0a6}
+.tok.sp.k-field{--frame:linear-gradient(135deg,#1c4a7a,#8cc4ff 30%,#2b6cb0 55%,#c6e2ff 80%,#1c4a7a);--metal:#8cc4ff}
+.tok .t-map.sp{height:136px;padding:6px;display:flex;flex-direction:column;gap:4px;overflow:hidden}
+.tok .t-map.sp .t-kind{font-size:11px;font-weight:800;color:var(--metal)}
+.tok .t-map.sp .t-text{font-size:10px;line-height:1.45;color:#d6dcea}
+.dk-side{display:flex;flex-direction:column;gap:8px;padding:12px 12px 10px;background:rgba(6,10,20,.85);border-left:1px solid #26314d;min-height:0}
+.dk-side .row{display:flex;gap:6px}
+.dk-side .row button{padding:6px 10px}
+.dk-name{font-size:15px;font-weight:800;padding:8px 10px}
+.dk-count{display:flex;justify-content:space-between;align-items:baseline}
+.dk-count b{font-size:30px;color:var(--warn)} .dk-count.done b{color:var(--ok)}
+.dk-count small{color:#9fb0d0}
+.dk-side .err,.dk-side .okmsg{font-size:12px}
+.bars{flex:1;min-height:80px;overflow:auto;display:flex;flex-direction:column;gap:3px;padding-right:2px}
+.bar{--frame:linear-gradient(135deg,#6b3e1c,#e0a96d 30%,#8c5a2b 55%,#f0c08a 80%,#6b3e1c);position:relative;height:34px;flex:none;display:flex;align-items:center;gap:8px;border-radius:6px;overflow:hidden;cursor:pointer;
+  background:linear-gradient(90deg,#1a2440,#111a30);border:1px solid #2e3b5e;padding-right:10px}
+.bar:hover{border-color:#ff8a7a}
+.bar.lv2{--frame:linear-gradient(135deg,#6f7b88,#f4f7fa 30%,#8e9aa6 55%,#ffffff 80%,#6f7b88)}
+.bar.lv3{--frame:linear-gradient(135deg,#7a5a00,#ffe27a 30%,#b8860b 55%,#fff1b0 80%,#7a5a00)}
+.bar.lv4{--frame:conic-gradient(from 200deg,#ff5f6d,#ffc371,#f9f871,#6dffb0,#5fd3ff,#8a7dff,#ff7de9,#ff5f6d)}
+.bar.k-magic{--frame:linear-gradient(135deg,#1d5e3a,#7fe0a6 30%,#2e8b57 55%,#b8f5cf 80%,#1d5e3a);background:linear-gradient(90deg,#123324,#0e1c18)}
+.bar.k-field{--frame:linear-gradient(135deg,#1c4a7a,#8cc4ff 30%,#2b6cb0 55%,#c6e2ff 80%,#1c4a7a);background:linear-gradient(90deg,#12284a,#0e1626)}
+.bar .gem{width:34px;height:34px;flex:none;display:grid;place-items:center;background:var(--frame);color:#1a1a1a;font-weight:900;font-size:15px;text-shadow:0 1px 0 rgba(255,255,255,.5)}
+.bar .bn{font-size:13px;font-weight:800;z-index:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px #000}
+.bar .art{position:absolute;right:34px;top:-14px;width:70px;height:70px;opacity:.35;pointer-events:none}
+.bar .art path{fill:#5b8def;stroke:#bcd4ff;stroke-width:1}
+.bar .bc{margin-left:auto;font-weight:900;color:#ffcc33;z-index:1}
+.curve{display:flex;gap:8px;align-items:flex-end;height:100px;padding:6px 2px 0;border-top:1px solid #26314d;flex:none}
+.curve div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px}
+.curve i{display:block;width:100%;min-height:2px;border-radius:3px 3px 0 0;background:linear-gradient(#ffd84a,#b8860b)}
+.curve .cv-magic i{background:linear-gradient(#7fe0a6,#2e8b57)} .curve .cv-field i{background:linear-gradient(#8cc4ff,#2b6cb0)}
+.curve b{color:#fff;font-size:12px} .curve span{font-size:10px;color:#ffd84a;white-space:nowrap;letter-spacing:-1px}
+.dk-btns{display:grid;grid-template-columns:1fr 1fr;gap:6px;flex:none}
+.dk-btns button{padding:8px 6px;font-size:13px}
+.dk-btns .wide{grid-column:1/3}
+.dk-btns .primary{font-size:15px;padding:11px}
+.dk-side > .meta{margin:0;flex:none}
+@media (max-width:1100px){.deckscreen{grid-template-columns:minmax(0,1fr) 300px}.dk-detail{display:none}}
+@media (max-width:760px){.deckscreen{grid-template-columns:1fr;height:auto}.dk-grid{max-height:70vh}.bars{max-height:300px}}
 </style>
 </head>
 <body>
@@ -1381,7 +1438,7 @@ function render() {
   const keep = {};
   app.querySelectorAll('[data-keep-scroll]').forEach(el => keep[el.dataset.keepScroll] = el.scrollTop);
   const inGame = !!state && (screen === 'play' || (online() && net.view === 'game'));
-  app.className = inGame ? 'wrap wide' : 'wrap';
+  app.className = inGame || screen === 'deck' ? 'wrap wide' : 'wrap';
   app.innerHTML = `
     <header class="top">
       <h1>47都道府県カードバトル <small class="meta">試遊版</small></h1>
@@ -1497,6 +1554,8 @@ function drawArrow() {
 
 // ---------- カードの詳しい表示(左) ----------
 document.addEventListener('mouseover', e => {
+  const dc = e.target.closest && e.target.closest('.deckscreen [data-card]');
+  if (dc) { const box = document.getElementById('dk-card'); const id = /^\d+$/.test(dc.dataset.card) ? Number(dc.dataset.card) : dc.dataset.card; if (box && box.dataset.id !== String(id)) { box.dataset.id = id; box.innerHTML = deckFullCard(id); } return; }
   const stage = document.getElementById('stage');
   if (!stage || !stage.contains(e.target)) return;
   document.querySelectorAll('.stage .hover').forEach(x => x.classList.remove('hover'));
@@ -1598,6 +1657,16 @@ function fillDeck() {
   if (add.length < need) toast(`絞り込み中のカードだけでは足りず、${add.length}枚だけ入れました(あと${need - add.length}枚)`);
 }
 
+// ---------- デッキ構築(シャドバ風。dailies 1122-0251 で C) ----------
+// 左: カーソルを合わせたカードを大きく / 中: 小さいカードの一覧 / 右: デッキの帯と星ごとの枚数
+const poolStats = p => ({ no: p.no, name: p.name, level: p.level, tags: p.tags, count: 1, mult: 1, attack: p.attack, defense: Math.round(p.defense * Number(config.defenseScale)) });
+function deckFullCard(id) { return isSpell(id) ? spellCardHTML(DB[id], {}) : cardHTML(poolStats(DB[id]), {}); }
+function spellTokHTML(def, ex = {}) {
+  return `<div class="tok sp k-${def.kind} ${ex.dim ? 'dim' : ''}" ${ex.attrs || ''}>
+    <div class="t-top"><span class="t-name">${esc(def.name)}</span></div>
+    <div class="t-map sp"><span class="t-kind">${KIND_LABEL[def.kind]}</span><span class="t-text">${esc(def.text)}</span></div>
+  </div>`;
+}
 function poolHTML() {
   const d = curDeck();
   const list = filteredCards();
@@ -1605,66 +1674,62 @@ function poolHTML() {
   return list.map(id => {
     const n = countIn(d, id);
     const full = n >= config.maxCopies || d.cards.length >= config.deckSize;
-    const foot = `<div class="pool-foot"><span class="${n ? 'in' : ''}">${isSpell(id) ? KIND_LABEL[DB[id].kind] : regionOf(id)} ${n}/${config.maxCopies}枚</span>
-      <span><button class="mini" data-remove="${id}" ${n ? '' : 'disabled'}>−</button><button class="mini" data-add="${id}" ${full ? 'disabled' : ''}>＋</button></span></div>`;
-    if (isSpell(id)) return spellCardHTML(DB[id], { clickable: !full, dim: full && !n, attrs: `data-add="${id}"`, preview: foot });
-    const p = DB[id];
-    const st = { no: p.no, name: p.name, level: p.level, tags: p.tags, count: 1, mult: 1, attack: p.attack, defense: Math.round(p.defense * Number(config.defenseScale)) };
-    return cardHTML(st, { clickable: !full, dim: full && !n, attrs: `data-add="${p.no}"`, preview: foot });
+    const attrs = `data-card="${id}"`;
+    const inner = isSpell(id) ? spellTokHTML(DB[id], { attrs }) : tokenHTML(poolStats(DB[id]), { attrs });
+    return `<div class="cell ${n ? 'in' : ''} ${full ? 'full' : ''}" data-add="${id}" title="クリックで入れる・右クリックで抜く">${inner}${n ? `<b class="cnt">×${n}</b>` : ''}</div>`;
   }).join('');
 }
+
+// 上の切り替えボタン(種類と星をまとめて1列に)
+const CHIPS = [['', '', 'すべて'], ['pref', '1', '★'], ['pref', '2', '★★'], ['pref', '3', '★★★'], ['pref', '4', '★★★★'], ['pref', '', '県すべて'], ['magic', '', 'マジック'], ['field', '', 'フィールド']];
 
 function deckScreenHTML() {
   ensureDeck();
   const d = curDeck();
   const errs = deckErrors(d);
-  const lv = { 1: 0, 2: 0, 3: 0, 4: 0 };
-  let atk = 0;
-  let nMagic = 0, nField = 0;
-  for (const id of d.cards) {
-    if (isSpell(id)) { if (DB[id].kind === 'magic') nMagic++; else nField++; continue; }
-    lv[DB[id].level]++; atk += DB[id].attack;
-  }
+  const cnt = { 1: 0, 2: 0, 3: 0, 4: 0, magic: 0, field: 0 };
+  for (const id of d.cards) cnt[isSpell(id) ? DB[id].kind : DB[id].level]++;
   const uniq = sortCards([...new Set(d.cards)]);
   const sel = (key, label, opts) => `<select data-filter="${key}"><option value="">${label}</option>${opts.map(([v, l]) => `<option value="${v}" ${String(filt[key]) === String(v) ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  const chips = CHIPS.map(([k, l, label], i) => `<button class="chip ${l ? 'st' : ''} ${filt.kind === k && String(filt.level) === l ? 'on' : ''}" data-act="chip" data-i="${i}">${label}</button>`).join('');
+  const bars = uniq.map(no => {
+    const sp = isSpell(no);
+    return `<div class="bar ${sp ? 'k-' + DB[no].kind : 'lv' + DB[no].level}" data-remove="${no}" data-card="${no}" title="クリック・右クリックで1枚抜く">
+      <span class="gem">${sp ? (DB[no].kind === 'magic' ? '魔' : '場') : DB[no].level}</span><span class="bn">${esc(DB[no].name)}</span>
+      ${sp ? '' : `<svg class="art" viewBox="0 0 100 100" aria-hidden="true"><path d="${SHAPES[no] || ''}"/></svg>`}<span class="bc">×${countIn(d, no)}</span></div>`;
+  }).join('');
+  const maxC = Math.max(1, ...Object.values(cnt));
+  const curve = [[1, '★'], [2, '★★'], [3, '★★★'], [4, '★★★★'], ['magic', '魔'], ['field', '場']]
+    .map(([k, l]) => `<div class="cv-${k}"><b>${cnt[k]}</b><i style="height:${cnt[k] / maxC * 60}px"></i><span>${l}</span></div>`).join('');
   return `<div class="deckscreen">
-    <section class="pool-panel">
+    <aside class="dk-detail" id="dk-detail"><h4>カーソルを合わせたカード</h4><div id="dk-card"><div class="detail-empty">カードにカーソルを<br>合わせると大きく出ます</div></div></aside>
+    <section class="dk-main">
       <div class="filters">
         <input type="search" data-filter="q" placeholder="名前でさがす" value="${esc(filt.q)}">
-        ${sel('kind', '全種類', [['pref', '県'], ['magic', 'マジック'], ['field', 'フィールド']])}
+        ${chips}
         ${sel('region', '全地方', REGIONS.map(r => [r[0], r[0]]))}
-        ${sel('level', '全部の星', [1, 2, 3, 4].map(n => [n, '★'.repeat(n)]))}
         ${sel('tag', '全タグ', TAGS.map(t => [t, t]))}
         <select data-filter="sort">${[['no', '県番号順'], ['atk', '攻撃力が高い順'], ['def', '防御力が高い順'], ['level', '星が多い順']].map(([v, l]) => `<option value="${v}" ${filt.sort === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
         <span class="meta" id="pool-count">${filteredCards().length}種類</span>
       </div>
-      <div class="zone pool" id="pool">${poolHTML()}</div>
+      <div class="dk-grid" id="pool" data-keep-scroll="pool">${poolHTML()}</div>
     </section>
-    <aside class="deck-panel">
+    <aside class="dk-side">
       <div class="row">
-        <select data-deckpick style="flex:1">${decks.map(x => `<option value="${x.id}" ${x.id === d.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>
+        <select data-deckpick style="flex:1;min-width:0">${decks.map(x => `<option value="${x.id}" ${x.id === d.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>
         <button data-act="deckNew">新規</button>
         <button data-act="deckDup">複製</button>
       </div>
-      <div class="row"><input type="text" data-deckname value="${esc(d.name)}" maxlength="30" style="flex:1" aria-label="デッキの名前"></div>
-      <div class="deck-count ${errs.length ? '' : 'done'}"><b class="num">${d.cards.length}</b> / ${config.deckSize} 枚</div>
+      <input type="text" class="dk-name" data-deckname value="${esc(d.name)}" maxlength="30" aria-label="デッキの名前">
+      <div class="dk-count ${errs.length ? '' : 'done'}"><span><b class="num">${d.cards.length}</b> <small>/ ${config.deckSize}枚</small></span><small>${d.cards.length < config.deckSize ? `あと${config.deckSize - d.cards.length}枚` : ''}</small></div>
       <div class="${errs.length ? 'err' : 'okmsg'}">${errs.length ? errs.map(esc).join('<br>') : 'このデッキで対戦できます'}</div>
-      <div class="lv-bars">${[1, 2, 3, 4].map(n => `<div><span>${'★'.repeat(n)}</span><i style="width:${d.cards.length ? lv[n] / Math.max(1, config.deckSize) * 100 : 0}%" class="lvbar${n}"></i><b>${lv[n]}</b></div>`).join('')}</div>
-      <div class="meta">マジック ${nMagic}枚 ・ フィールド ${nField}枚</div>
-      <div class="meta">デッキの総攻撃力 <span class="num">${fmt(atk)}</span></div>
-      <div class="deck-list" data-keep-scroll="decklist">
-        ${uniq.length ? uniq.map(no => `<div class="dl-row ${isSpell(no) ? 'spline-' + DB[no].kind : 'lvline' + DB[no].level}">
-          <span>${esc(DB[no].name)} <small>${isSpell(no) ? KIND_LABEL[DB[no].kind] : '★'.repeat(DB[no].level)}</small></span>
-          <span><b>×${countIn(d, no)}</b><button class="mini" data-remove="${no}">−</button><button class="mini" data-add="${no}">＋</button></span>
-        </div>`).join('') : '<p class="meta">左のカードをクリックして入れます</p>'}
-      </div>
-      <div class="btns">
-        <button data-act="deckFill" ${d.cards.length >= config.deckSize ? 'disabled' : ''}>残りを絞り込み中のカードからランダムで埋める</button>
-        <div class="row">
-          <button data-act="deckClear" ${d.cards.length ? '' : 'disabled'} style="flex:1">空にする</button>
-          <button class="danger" data-act="deckDelete" style="flex:1">${deleteArm ? 'もう一度押すと削除' : 'このデッキを削除'}</button>
-        </div>
-        <button class="primary" data-act="deckPlay" ${errs.length ? 'disabled' : ''}>このデッキで対戦する</button>
+      <div class="bars" data-keep-scroll="decklist">${bars || '<p class="meta">左のカードを押すと入ります</p>'}</div>
+      <div class="curve">${curve}</div>
+      <div class="dk-btns">
+        <button data-act="deckFill" ${d.cards.length >= config.deckSize ? 'disabled' : ''} title="絞り込み中のカードからランダムで入れます">ランダムで埋める</button>
+        <button data-act="deckClear" ${d.cards.length ? '' : 'disabled'}>空にする</button>
+        <button class="danger wide" data-act="deckDelete">${deleteArm ? 'もう一度押すと削除' : 'このデッキを削除'}</button>
+        <button class="primary wide" data-act="deckPlay" ${errs.length ? 'disabled' : ''}>このデッキで対戦する</button>
       </div>
       <p class="meta">変更はこの端末に自動で保存されます。</p>
     </aside>
@@ -1823,6 +1888,7 @@ document.addEventListener('click', e => {
       case 'closeOver': case 'closeOverBtn': overClosed = true; render(); return;
       case 'cancel': resetUI(); render(); return;
       case 'toggleLog': logOpen = !logOpen; render(); return;
+      case 'chip': { const c = CHIPS[Number(t.dataset.i)]; filt.kind = c[0]; filt.level = c[1]; render(); return; }
       case 'toBattle': act({ type: 'toBattle', player: state.active }); return;
       case 'endTurn': act({ type: 'endTurn', player: state.active }); return;
       case 'concede':
@@ -1925,6 +1991,8 @@ document.addEventListener('pointerup', e => {
   else if (tl && Number(tl.dataset.leader) !== state.active) leaderClick(Number(tl.dataset.leader));
 });
 document.addEventListener('contextmenu', e => {
+  const dk = e.target.closest('.deckscreen [data-add], .deckscreen [data-remove]');
+  if (dk) { e.preventDefault(); const v = dk.dataset.add || dk.dataset.remove; removeCard(/^\d+$/.test(v) ? Number(v) : v); return; }
   if (!e.target.closest('.stage') || !ui.mode) return;
   e.preventDefault(); resetUI(); render();
 });
