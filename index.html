@@ -64,7 +64,7 @@ header.top h1{font-size:18px;margin:0 12px 0 0}
 .card .c-map path{fill:#5b8def;stroke:#bcd4ff;stroke-width:.8;stroke-linejoin:round;filter:drop-shadow(0 0 3px rgba(120,170,255,.9))}
 .card .c-badges{position:absolute;left:3px;top:3px;right:3px;display:flex;flex-direction:column;align-items:flex-start;gap:2px;z-index:2}
 .card .c-badges b{font-size:10px;line-height:1.3;border-radius:4px;padding:1px 5px;color:#fff;font-weight:800;box-shadow:0 1px 3px rgba(0,0,0,.6)}
-.card .c-stack{background:#b3261e} .card .c-buff{background:#1f7a3a} .card .c-fieldfx{background:#2b6cb0}
+.card .c-stack{background:#b3261e} .card .c-buff{background:#1f7a3a} .card .c-debuff{background:#8a5a14} .card .c-fieldfx{background:#2b6cb0}
 .card.used .c-map::after{content:"攻撃済み";position:absolute;right:3px;bottom:3px;font-size:10px;background:#555;color:#fff;border-radius:4px;padding:1px 5px;z-index:2}
 .card .c-tags{display:flex;flex-wrap:wrap;justify-content:center;gap:3px;margin-top:6px;min-height:39px;align-content:flex-start}
 .card .c-tags i{font-style:normal;font-size:10px;line-height:1.5;border:1px solid var(--metal);color:var(--metal);border-radius:9px;background:rgba(255,255,255,.04);padding:0 5px}
@@ -178,7 +178,7 @@ button.interrupt.on{background:var(--accent);color:#1a1a1a}
 .tok .t-map path{fill:#5b8def;stroke:#bcd4ff;stroke-width:.8;stroke-linejoin:round;filter:drop-shadow(0 0 3px rgba(120,170,255,.9))}
 .tok .c-badges{position:absolute;left:3px;top:3px;right:3px;display:flex;flex-direction:column;align-items:flex-start;gap:2px}
 .tok .c-badges b{font-size:10px;line-height:1.3;border-radius:4px;padding:1px 5px;color:#fff;font-weight:800;box-shadow:0 1px 3px rgba(0,0,0,.6)}
-.tok .c-stack{background:#b3261e} .tok .c-buff{background:#1f7a3a} .tok .c-fieldfx{background:#2b6cb0}
+.tok .c-stack{background:#b3261e} .tok .c-buff{background:#1f7a3a} .tok .c-debuff{background:#8a5a14} .tok .c-fieldfx{background:#2b6cb0}
 .tok .t-used{position:absolute;right:3px;bottom:3px;font-size:10px;background:#555;color:#fff;border-radius:4px;padding:1px 5px}
 .tok .t-atk,.tok .t-def{position:absolute;bottom:-14px;width:66px;height:30px;border-radius:8px;font-size:13px;font-weight:800;line-height:14px;text-align:center;color:#fff;border:2px solid rgba(255,255,255,.85);box-shadow:0 3px 6px rgba(0,0,0,.6);padding-top:1px;white-space:nowrap;letter-spacing:-.02em}
 .tok .t-atk{left:-4px;background:linear-gradient(#e0533f,#8f1f14)}
@@ -576,7 +576,7 @@ const Engine = (() => {
     const f = fieldMod(s, base, db);
     return {
       no: base.no, name: base.name, level: base.level, tags: base.tags, count: n, mult,
-      buffAtk: bAtk, buffDef: bDef, fieldAtk: f.atk, fieldDef: f.def, guard: unit.guardUntil >= s.turn,
+      buffAtk: bAtk, buffDef: bDef, fieldAtk: f.atk, fieldDef: f.def, guard: unit.guardUntil >= s.turn, rest: unit.restUntil >= s.turn,
       attack: Math.round(base.attack * mult * bAtk * f.atk),
       defense: Math.round(base.defense * Number(s.config.defenseScale) * bDef * f.def),
     };
@@ -594,6 +594,8 @@ const Engine = (() => {
   function resolveBattle(s, attacker, target, db) {
     const a = unitStats(s, attacker, db);
     const d = unitStats(s, target, db);
+    const fd = s.field && db[s.cards[s.field.uid]];
+    if (fd && fd.battle) a.attack = Math.round(a.attack * fd.battle(db[a.no], db[d.no]));
     const diff = a.attack - d.defense;
     if (diff > 0) return { kind: 'win', destroyTarget: true, damageTo: 'defender', damage: diff, atk: a.attack, def: d.defense };
     if (diff < 0) return {
@@ -610,6 +612,7 @@ const Engine = (() => {
     if (s.active !== p) return '自分のターンではありません';
     if (s.phase !== 'battle') return 'バトルフェイズではありません';
     if ((unit.attacks || 0) >= attacksAllowed(unit)) return 'この県はもう攻撃しました';
+    if (unit.restUntil >= s.turn) return '鹿に囲まれて、このターンは攻撃できません';
     if (!s.config.canAttackOnSummonTurn && unit.summonedTurn === s.turn) return '召喚したターンは攻撃できません';
     return null;
   }
@@ -816,6 +819,54 @@ const Engine = (() => {
         if (src) specialSummon(s, p, src, ev);
       },
     };
+  }
+
+  // ---- 関東・関西(2026-11-23 第2弾) ----
+  Object.assign(N, { 山形: 6, 奈良: 29 });
+  const KANTO = [N.茨城, N.栃木, N.群馬, N.埼玉, N.千葉, N.東京, N.神奈川];
+  const KANSAI = [N.三重, N.滋賀, N.京都, N.大阪, N.兵庫, N.奈良, N.和歌山];
+  const BEDTOWN = [N.埼玉, N.千葉, N.神奈川];
+  const ICHIGO = [N.栃木, N.福岡, N.熊本, N.愛知, N.静岡];   // いちご収穫量 上位5県(2023年産)
+  const MELON = [N.茨城, N.熊本, N.北海道, N.静岡, N.山形];  // メロン産出額 上位5道県(2023年)
+  const KEIHANSHIN = [N.京都, N.大阪, N.兵庫];
+  const KII = [N.和歌山, N.奈良, N.三重];
+  const MIE_CALL = [N.滋賀, N.京都, N.大阪, N.兵庫, N.奈良, N.和歌山, N.愛知, N.岐阜];
+  // 50ヘルツ側(北海道・東北・関東・新潟・山梨)。静岡・長野は県内で分かれるが大半が60ヘルツなので西
+  const HZ50 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 19];
+  const onField = (s, p, nos) => nos.map(no => findByNo(s, p, no)).filter(Boolean);
+  const isPref = (db, uid, s) => kindOf(db, s.cards[uid]) === 'pref';
+  // 墓地の県(番号ごとに1つ)
+  function gravePrefNos(s, p, db, pred) {
+    const seen = [];
+    for (const uid of s.players[p].grave) {
+      const no = s.cards[uid];
+      if (no != null && kindOf(db, no) === 'pref' && !seen.includes(no) && (!pred || pred(db[no]))) seen.push(no);
+    }
+    return seen;
+  }
+  function takeFromGrave(s, p, no) {
+    const g = s.players[p].grave;
+    const i = g.findIndex(u => s.cards[u] === no);
+    return i < 0 ? null : g.splice(i, 1)[0];
+  }
+  // 地方の県がいる時、場にいない同じ地方の県(星3以下)を手札か山札から特殊召喚
+  function regionCall(id, name, list, label, text) {
+    return {
+      id, kind: 'magic', name,
+      text: `自分の場に${label}の県がいる時、場にいない${label}の県(星3以下)を1体、手札か山札から特殊召喚する(${text})`,
+      options(s, p, db) {
+        if (!list.some(no => findByNo(s, p, no))) return `${label}の県が場にいる時に使えます`;
+        const miss = list.filter(no => !findByNo(s, p, no) && db[no].level <= 3 && findSource(s, p, no));
+        return miss.length ? miss.map(no => ({ label: `${names(db, [no])}を特殊召喚`, choice: no })) : `呼べる${label}の県が手札にも山札にもいません`;
+      },
+      resolve(s, p, choice, db, ev) { const src = findSource(s, p, choice); if (src) specialSummon(s, p, src, ev); },
+    };
+  }
+  // いちばん攻撃力が高い県(同じなら先に出した方)
+  function topUnit(s, units, db) {
+    let best = null, v = -1;
+    for (const u of units) { const a = unitStats(s, u, db).attack; if (a > v) { v = a; best = u; } }
+    return best;
   }
 
   const SPELLS = [
@@ -1178,6 +1229,287 @@ const Engine = (() => {
         }
       },
     },
+    // ---- 2026-11-23 第2弾: 関東・関西・東西(数字は [仮]) ----
+    regionCall('m_kantoheiya', '関東平野', KANTO, '関東', '日本一広い平野は1都6県にまたがる'),
+    {
+      id: 'm_bedtown', kind: 'magic', name: '首都圏ベッドタウン',
+      text: '自分の場の埼玉・千葉・神奈川1体につき、東京の攻撃力が1.5倍(東京は昼の人口が夜より多い)',
+      params: { atk: 1.5 },
+      options(s, p, db) {
+        if (!findByNo(s, p, N.東京)) return '東京が場にいる時に使えます';
+        const n = onField(s, p, BEDTOWN).length;
+        return n ? [{ label: `東京の攻撃力${xLabel(+(this.params.atk ** n).toFixed(3))}(${n}県分)`, choice: 'go' }] : '埼玉・千葉・神奈川のどれかが場にいる時に使えます';
+      },
+      resolve(s, p, choice, db, ev) { addBuff(s, p, [findByNo(s, p, N.東京)], this.params.atk ** onField(s, p, BEDTOWN).length, 1, this.id, ev); },
+    },
+    bridge('m_aqua', '東京湾横断道路', N.千葉, N.神奈川, '千葉・神奈川'),
+    {
+      id: 'm_airports', kind: 'magic', name: '成田と羽田',
+      text: '自分の場に千葉と東京がいれば、カードを2枚引く(首都の2大空港は千葉と東京にある)',
+      params: { draw: 2 },
+      options(s, p, db) {
+        if (!(findByNo(s, p, N.千葉) && findByNo(s, p, N.東京))) return '千葉と東京が両方場にいる時に使えます';
+        return s.players[p].deck.length ? [{ label: `カードを${this.params.draw}枚引く`, choice: 'go' }] : '山札がありません';
+      },
+      resolve(s, p, choice, db, ev) { draw(s, p, this.params.draw, ev, false); },
+    },
+    {
+      id: 'm_ekiden', kind: 'magic', name: '正月の箱根路',
+      text: '自分のターンに使う。自分の場に東京と神奈川がいれば、どちらか1体がこのターンもう1回攻撃できる(大手町と箱根を往復する大学駅伝)',
+      options(s, p, db) {
+        if (s.active !== p) return '自分のターンに使うカードです';
+        const us = onField(s, p, [N.東京, N.神奈川]);
+        if (us.length < 2) return '東京と神奈川が両方場にいる時に使えます';
+        return us.map(u => ({ label: `${db[unitNo(s, u)].name}がもう1回攻撃できる`, choice: u.id }));
+      },
+      resolve(s, p, choice, db, ev) {
+        const u = findUnit(s, p, choice);
+        u.extraAttacks = (u.extraAttacks || 0) + 1;
+        ev.push({ type: 'extraAttack', player: p, unitId: u.id, no: unitNo(s, u) });
+      },
+    },
+    {
+      id: 'm_tokyo2', kind: 'magic', name: '東京で2度目の祭典',
+      text: '自分の場に東京がいる時、自分の県すべての攻撃力が1.5倍(夏の世界大会を1964年と2021年に開催)',
+      params: { atk: 1.5 },
+      options(s, p, db) { return findByNo(s, p, N.東京) ? [{ label: `自分の県 ${s.players[p].field.length}体の攻撃力${xLabel(this.params.atk)}`, choice: 'go' }] : '東京が場にいる時に使えます'; },
+      resolve(s, p, choice, db, ev) { addBuff(s, p, s.players[p].field, this.params.atk, 1, this.id, ev); },
+    },
+    {
+      id: 'm_ikkyoku', kind: 'magic', name: '東京一極集中',
+      text: '東京以外の自分の県をすべてリリースする。リリースした1体につき、東京の攻撃力が+50%',
+      params: { per: 0.5 },
+      options(s, p, db) {
+        const t = findByNo(s, p, N.東京);
+        if (!t) return '東京が場にいる時に使えます';
+        const n = s.players[p].field.length - 1;
+        return n ? [{ label: `東京以外の${n}体をリリースし、東京の攻撃力${xLabel(1 + n * this.params.per)}`, choice: 'go' }] : '東京のほかに県がいません';
+      },
+      resolve(s, p, choice, db, ev) {
+        const t = findByNo(s, p, N.東京);
+        const others = s.players[p].field.filter(u => u !== t);
+        for (const u of others) destroyUnit(s, p, u.id, ev, 'tribute');
+        addBuff(s, p, [t], 1 + others.length * this.params.per, 1, this.id, ev);
+      },
+    },
+    {
+      id: 'm_ichigo', kind: 'magic', name: 'いちごの産地',
+      text: '自分の場の栃木・福岡・熊本・愛知・静岡(いちご収穫量の上位5県)すべて、攻撃力が1.5倍',
+      params: { atk: 1.5 },
+      options(s, p, db) {
+        const us = onField(s, p, ICHIGO);
+        return us.length ? [{ label: `${names(db, us.map(u => unitNo(s, u)))}の攻撃力${xLabel(this.params.atk)}`, choice: 'go' }] : 'いちごの上位5県が場にいません';
+      },
+      resolve(s, p, choice, db, ev) { addBuff(s, p, onField(s, p, ICHIGO), this.params.atk, 1, this.id, ev); },
+    },
+    {
+      id: 'm_karuta', kind: 'magic', name: '群馬の郷土かるた',
+      text: '山札から群馬を1枚手札に加え、さらにカードを1枚引く(群馬県民は札を暗記している)',
+      params: { draw: 1 },
+      options(s, p, db) { return s.players[p].deck.some(u => s.cards[u] === N.群馬) ? [{ label: '山札から群馬を手札に加え、1枚引く', choice: 'go' }] : '山札に群馬がいません'; },
+      resolve(s, p, choice, db, ev) {
+        const pl = s.players[p];
+        const uid = pl.deck.find(u => s.cards[u] === N.群馬);
+        pl.deck.splice(pl.deck.indexOf(uid), 1);
+        addToHand(s, p, uid, ev, { type: 'search', player: p, uid, id: N.群馬 });
+        draw(s, p, this.params.draw, ev, false);
+      },
+    },
+    {
+      id: 'm_melon', kind: 'magic', name: 'メロンの産地',
+      text: '自分の場の茨城・熊本・北海道・静岡・山形(メロン産出額の上位5道県)1体につき、ライフが50兆回復する',
+      params: { heal: 50e12 },
+      options(s, p, db) {
+        const n = onField(s, p, MELON).length;
+        return n ? [{ label: `ライフを${n * this.params.heal / 1e12}兆回復`, choice: 'go' }] : 'メロンの上位5道県が場にいません';
+      },
+      resolve(s, p, choice, db, ev) { heal(s, p, onField(s, p, MELON).length * this.params.heal, ev); },
+    },
+    {
+      id: 'm_tsukuba', kind: 'magic', name: '研究学園都市つくば',
+      text: '自分の場に茨城がいる時、カードを1枚引く。引いたのがマジックなら、もう1枚引く',
+      options(s, p, db) {
+        if (!findByNo(s, p, N.茨城)) return '茨城が場にいる時に使えます';
+        return s.players[p].deck.length ? [{ label: 'カードを1枚引く(マジックならもう1枚)', choice: 'go' }] : '山札がありません';
+      },
+      resolve(s, p, choice, db, ev) {
+        const top = s.players[p].deck[0];
+        draw(s, p, 1, ev, false);
+        const hit = kindOf(db, s.cards[top]) === 'magic';
+        ev.push({ type: 'luck', player: p, win: hit, text: hit ? '研究成果あり! もう1枚引く' : '今回は成果なし' });
+        if (hit) draw(s, p, 1, ev, false);
+      },
+    },
+    {
+      id: 'm_nikko', kind: 'magic', name: '日光東照宮',
+      text: '自分の場に栃木がいる時、墓地の星1の県を1枚、手札に戻す(日光を見ずして結構と言うなかれ)',
+      options(s, p, db) {
+        if (!findByNo(s, p, N.栃木)) return '栃木が場にいる時に使えます';
+        const nos = gravePrefNos(s, p, db, c => c.level === 1);
+        return nos.length ? nos.map(no => ({ label: `墓地の${db[no].name}を手札に戻す`, choice: no })) : '墓地に星1の県がいません';
+      },
+      resolve(s, p, choice, db, ev) {
+        const uid = takeFromGrave(s, p, choice);
+        if (uid) addToHand(s, p, uid, ev, { type: 'recover', player: p, uid, no: choice });
+      },
+    },
+    {
+      id: 'm_uminashi', kind: 'magic', name: '海なし県の意地',
+      text: '自分の場の海なし県(栃木・群馬・埼玉・山梨・長野・岐阜・滋賀・奈良)すべて、攻撃力が1.5倍',
+      params: { atk: 1.5 },
+      options(s, p, db) {
+        const us = unitsWhere(s, p, db, c => c.tags.includes('内陸'));
+        return us.length ? [{ label: `海なし県 ${us.length}体の攻撃力${xLabel(this.params.atk)}`, choice: 'go' }] : '海なし県が場にいません';
+      },
+      resolve(s, p, choice, db, ev) { addBuff(s, p, unitsWhere(s, p, db, c => c.tags.includes('内陸')), this.params.atk, 1, this.id, ev); },
+    },
+    regionCall('m_kansaitetsu', '関西の私鉄網', KANSAI, '関西', '大手私鉄が府県をまたいで走る'),
+    {
+      id: 'm_keihanshin', kind: 'magic', name: '京阪神',
+      text: '自分の場に京都・大阪・兵庫がそろっていれば、3府県の攻撃力が2倍',
+      params: { atk: 2 },
+      options(s, p, db) {
+        const miss = KEIHANSHIN.filter(no => !findByNo(s, p, no));
+        return miss.length ? `あと ${names(db, miss)} が足りません` : [{ label: `3府県の攻撃力${xLabel(this.params.atk)}`, choice: 'go' }];
+      },
+      resolve(s, p, choice, db, ev) { addBuff(s, p, onField(s, p, KEIHANSHIN), this.params.atk, 1, this.id, ev); },
+    },
+    {
+      id: 'm_daidokoro', kind: 'magic', name: '天下の台所',
+      text: '自分の場に大阪がいれば、カードを2枚引く(江戸時代の大阪の呼び名)',
+      params: { draw: 2 },
+      options(s, p, db) {
+        if (!findByNo(s, p, N.大阪)) return '大阪が場にいる時に使えます';
+        return s.players[p].deck.length ? [{ label: `カードを${this.params.draw}枚引く`, choice: 'go' }] : '山札がありません';
+      },
+      resolve(s, p, choice, db, ev) { draw(s, p, this.params.draw, ev, false); },
+    },
+    {
+      id: 'm_banpaku', kind: 'magic', name: '大阪で2度目の万博',
+      text: '自分の場に大阪がいる時、自分の県すべての攻撃力が1.5倍(1970年と2025年に開催)',
+      params: { atk: 1.5 },
+      options(s, p, db) { return findByNo(s, p, N.大阪) ? [{ label: `自分の県 ${s.players[p].field.length}体の攻撃力${xLabel(this.params.atk)}`, choice: 'go' }] : '大阪が場にいる時に使えます'; },
+      resolve(s, p, choice, db, ev) { addBuff(s, p, s.players[p].field, this.params.atk, 1, this.id, ev); },
+    },
+    {
+      id: 'm_sennen', kind: 'magic', name: '千年の都',
+      text: '自分の場の京都の防御力が3倍(794年から明治の初めまで都だった)',
+      params: { def: 3 },
+      options(s, p, db) { return findByNo(s, p, N.京都) ? [{ label: `京都の防御力${xLabel(this.params.def)}`, choice: 'go' }] : '京都が場にいる時に使えます'; },
+      resolve(s, p, choice, db, ev) { addBuff(s, p, [findByNo(s, p, N.京都)], 1, this.params.def, this.id, ev); },
+    },
+    {
+      id: 'm_kidaore', kind: 'magic', name: '京の着倒れ、大阪の食い倒れ',
+      text: '自分の場に京都がいれば京都の防御力が1.5倍、大阪がいれば1枚引く、兵庫がいれば兵庫の攻撃力が1.5倍(神戸の履き倒れ)',
+      params: { def: 1.5, draw: 1, atk: 1.5 },
+      options(s, p, db) {
+        const k = findByNo(s, p, N.京都), o = findByNo(s, p, N.大阪), h = findByNo(s, p, N.兵庫);
+        if (!k && !o && !h) return '京都・大阪・兵庫のどれかが場にいる時に使えます';
+        const parts = [k && `京都の防御力${xLabel(this.params.def)}`, o && `${this.params.draw}枚引く`, h && `兵庫の攻撃力${xLabel(this.params.atk)}`].filter(Boolean);
+        return [{ label: parts.join('、'), choice: 'go' }];
+      },
+      resolve(s, p, choice, db, ev) {
+        const k = findByNo(s, p, N.京都), o = findByNo(s, p, N.大阪), h = findByNo(s, p, N.兵庫);
+        if (k) addBuff(s, p, [k], 1, this.params.def, this.id, ev);
+        if (h) addBuff(s, p, [h], this.params.atk, 1, this.id, ev);
+        if (o) draw(s, p, this.params.draw, ev, false);
+      },
+    },
+    {
+      id: 'm_shika', kind: 'magic', name: '奈良の鹿',
+      text: '自分の場に奈良がいる時、相手の県を1体選ぶ。その県は次の相手のターンが終わるまで攻撃できない(相手のターン中に使えば、そのターンだけ)',
+      options(s, p, db) {
+        if (!findByNo(s, p, N.奈良)) return '奈良が場にいる時に使えます';
+        const tg = targets(s, other(p));
+        return tg.length ? tg.map(u => ({ label: `相手の${db[unitNo(s, u)].name}を足止めする`, choice: u.id })) : '相手の場に対象にできる県がいません';
+      },
+      resolve(s, p, choice, db, ev) {
+        const u = findUnit(s, other(p), choice);
+        u.restUntil = s.active === p ? s.turn + 1 : s.turn;
+        ev.push({ type: 'rest', player: other(p), unitId: u.id, no: unitNo(s, u) });
+      },
+    },
+    {
+      id: 'm_horyuji', kind: 'magic', name: '法隆寺',
+      text: '自分の場の奈良の防御力が3倍(現存する世界最古の木造建築)',
+      params: { def: 3 },
+      options(s, p, db) { return findByNo(s, p, N.奈良) ? [{ label: `奈良の防御力${xLabel(this.params.def)}`, choice: 'go' }] : '奈良が場にいる時に使えます'; },
+      resolve(s, p, choice, db, ev) { addBuff(s, p, [findByNo(s, p, N.奈良)], 1, this.params.def, this.id, ev); },
+    },
+    {
+      id: 'm_kii', kind: 'magic', name: '紀伊山地の霊場と参詣道',
+      text: '自分の場に和歌山・奈良・三重のどれかがいる時、墓地の県を1体特殊召喚する(3県にまたがる世界遺産)',
+      options(s, p, db) {
+        if (!KII.some(no => findByNo(s, p, no))) return '和歌山・奈良・三重のどれかが場にいる時に使えます';
+        const nos = gravePrefNos(s, p, db);
+        return nos.length ? nos.map(no => ({ label: `墓地の${db[no].name}を特殊召喚`, choice: no })) : '墓地に県がいません';
+      },
+      resolve(s, p, choice, db, ev) {
+        const uid = takeFromGrave(s, p, choice);
+        if (uid) placeCard(s, p, uid, ev, { special: true, tributes: 0, revive: true });
+      },
+    },
+    {
+      id: 'm_sanpo', kind: 'magic', name: '近江商人の三方よし',
+      text: '自分の場に滋賀がいる時、お互いにカードを1枚引き、自分はさらに1枚引く(売り手よし・買い手よし・世間よし)',
+      options(s, p, db) {
+        if (!findByNo(s, p, N.滋賀)) return '滋賀が場にいる時に使えます';
+        return s.players[p].deck.length ? [{ label: 'お互いに1枚引き、自分はもう1枚引く', choice: 'go' }] : '山札がありません';
+      },
+      resolve(s, p, choice, db, ev) { draw(s, p, 1, ev, false); draw(s, other(p), 1, ev, false); draw(s, p, 1, ev, false); },
+    },
+    {
+      id: 'm_nada', kind: 'magic', name: '灘の酒',
+      text: '自分の場に兵庫がいる時、相手の県1体の攻撃力が半分になる(日本酒の生産量は兵庫が全国1位)',
+      params: { atk: 0.5 },
+      options(s, p, db) {
+        if (!findByNo(s, p, N.兵庫)) return '兵庫が場にいる時に使えます';
+        const tg = targets(s, other(p));
+        return tg.length ? tg.map(u => ({ label: `相手の${db[unitNo(s, u)].name}の攻撃力${xLabel(this.params.atk)}`, choice: u.id })) : '相手の場に対象にできる県がいません';
+      },
+      resolve(s, p, choice, db, ev) { addBuff(s, other(p), [findUnit(s, other(p), choice)], this.params.atk, 1, this.id, ev); },
+    },
+    {
+      id: 'm_nandeyanen', kind: 'magic', name: 'なんでやねん!',
+      text: '相手の県1体にかかっている、マジックの強化(2倍・3倍など)をすべて消す',
+      options(s, p, db) {
+        const tg = targets(s, other(p)).filter(u => (u.buffs || []).some(b => b.atk > 1 || b.def > 1));
+        return tg.length ? tg.map(u => ({ label: `相手の${db[unitNo(s, u)].name}の強化を消す`, choice: u.id })) : '強化されている相手の県がいません';
+      },
+      resolve(s, p, choice, db, ev) {
+        const u = findUnit(s, other(p), choice);
+        u.buffs = (u.buffs || []).filter(b => !(b.atk > 1 || b.def > 1));
+        ev.push({ type: 'unbuff', player: other(p), unitId: u.id, no: unitNo(s, u) });
+      },
+    },
+    {
+      id: 'm_mie', kind: 'magic', name: '三重は近畿?東海?',
+      text: '自分の場に三重がいる時、関西の府県か愛知・岐阜を1体、山札から特殊召喚する',
+      options(s, p, db) {
+        if (!findByNo(s, p, N.三重)) return '三重が場にいる時に使えます';
+        const nos = MIE_CALL.filter(no => s.players[p].deck.some(u => s.cards[u] === no));
+        return nos.length ? nos.map(no => ({ label: `山札の${db[no].name}を特殊召喚`, choice: no })) : '山札に呼べる県がいません';
+      },
+      resolve(s, p, choice, db, ev) {
+        const uid = s.players[p].deck.find(u => s.cards[u] === choice);
+        if (uid) specialSummon(s, p, uid, ev);
+      },
+    },
+    {
+      id: 'm_sekigahara', kind: 'magic', name: '天下分け目の関ヶ原',
+      text: 'お互いの場で攻撃力がいちばん高い県同士を比べ、低い方を破壊する(同じなら両方)',
+      options(s, p, db) {
+        const a = topUnit(s, s.players[p].field, db), b = topUnit(s, targets(s, other(p)), db);
+        if (!a || !b) return 'お互いの場に県がいる時に使えます';
+        return [{ label: `自分の${db[unitNo(s, a)].name}と相手の${db[unitNo(s, b)].name}で決戦`, choice: 'go' }];
+      },
+      resolve(s, p, choice, db, ev) {
+        const a = topUnit(s, s.players[p].field, db), b = topUnit(s, targets(s, other(p)), db);
+        const x = unitStats(s, a, db).attack, y = unitStats(s, b, db).attack;
+        if (x <= y) destroyUnit(s, p, a.id, ev, 'battle');
+        if (y <= x) destroyUnit(s, other(p), b.id, ev, 'battle');
+      },
+    },
     {
       id: 'f_typhoon', kind: 'field', name: '台風上陸',
       text: '九州・沖縄・大阪・千葉の県は、攻撃力が半分になる(両方の場)',
@@ -1192,6 +1524,12 @@ const Engine = (() => {
       id: 'f_heat', kind: 'field', name: '猛暑日',
       text: '「都心」「内陸」タグの県は、攻撃力が0.7倍になる(両方の場)',
       mod: pref => pref.tags.includes('都心') || pref.tags.includes('内陸') ? { atk: 0.7 } : null,
+    },
+    {
+      id: 'f_hz', kind: 'field', name: '50ヘルツと60ヘルツ',
+      text: '東日本(50ヘルツ: 北海道・東北・関東・新潟・山梨)の県と西日本(60ヘルツ)の県が戦うと、攻撃した側の攻撃力が0.8倍になる(両方の場)',
+      mod: () => null,
+      battle: (a, d) => HZ50.includes(a.no) !== HZ50.includes(d.no) ? 0.8 : 1,
     },
   ];
   for (const c of SPELLS) {
@@ -1455,6 +1793,28 @@ const SETUP_KEY = 'pref47.setup.v1';
 function loadJSON(k, d) { try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return v == null ? d : v; } catch (e) { return d; } }
 function saveJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { toast('この端末に保存できませんでした'); } }
 let decks = loadJSON(DECKS_KEY, []).filter(d => d && Array.isArray(d.cards)); // [{id, name, cards:[県番号]}]
+// 最初から組んであるデッキ(スターター)。初回だけ足す。消したら戻さない [仮]
+const STARTERS_KEY = 'pref47.starters.v1';
+const starterRep = (n, x) => Array(n).fill(x);
+const STARTER_DECKS = [
+  { id: 'starter_kanto', name: '関東デッキ', cards: [
+    ...starterRep(4, 9), ...starterRep(4, 10), ...starterRep(4, 8), ...starterRep(3, 11), ...starterRep(3, 12), ...starterRep(3, 14), ...starterRep(3, 13),
+    ...starterRep(3, 'm_kantoheiya'), ...starterRep(2, 'm_kitakanto'), ...starterRep(2, 'm_aqua'), ...starterRep(2, 'm_bedtown'),
+    'm_airports', 'm_karuta', 'm_nikko', 'm_uminashi', 'm_ikkyoku', 'm_tokyo2', 'm_sekigahara'] },
+  { id: 'starter_kansai', name: '関西デッキ', cards: [
+    ...starterRep(4, 25), ...starterRep(4, 29), ...starterRep(3, 30), ...starterRep(3, 24), ...starterRep(3, 26), ...starterRep(3, 27), ...starterRep(3, 28),
+    ...starterRep(3, 'm_kansaitetsu'), ...starterRep(2, 'm_keihanshin'), ...starterRep(2, 'm_shika'),
+    'm_daidokoro', 'm_biwako', 'm_kii', 'm_sanpo', 'm_nada', 'm_nandeyanen', 'm_mie', 'm_sennen', 'm_banpaku', 'm_sekigahara'] },
+];
+{
+  const got = loadJSON(STARTERS_KEY, []);
+  const add = STARTER_DECKS.filter(d => !got.includes(d.id) && !decks.some(x => x.id === d.id));
+  if (add.length) {
+    decks = add.map(d => ({ id: d.id, name: d.name, cards: d.cards.slice() })).concat(decks);
+    saveJSON(DECKS_KEY, decks);
+    saveJSON(STARTERS_KEY, got.concat(add.map(d => d.id)));
+  }
+}
 let setup = Object.assign({ decks: ['random', 'random'], first: '0' }, loadJSON(SETUP_KEY, {}));
 let deckNames = ['ランダム', 'ランダム'];
 const deckErrors = d => Engine.validateDeck(d.cards, DB, config);
@@ -1541,7 +1901,7 @@ function pushLogInner(events, logLines) {
       case 'draw': if (!e.setup) t = `${pn(e.player)} がドロー${e.no != null && e.mine ? `(${esc(nm(e.no))})` : ''}`; break;
       case 'deckEmpty': t = `${pn(e.player)} の山札が尽きた!`; break;
       case 'burn': t = `　${pn(e.player)} の手札がいっぱいなので、${e.via === 'search' ? '加えた' : '引いた'}${e.no != null ? `「${esc(nm(e.no))}」` : 'カード'}は墓地へ`; break;
-      case 'summon': t = `${pn(e.player)} が <b>${nm(e.no)}</b> を${e.special ? '特殊' : ''}召喚${e.tributes ? `(生け贄${e.tributes}枚)` : ''}`; break;
+      case 'summon': t = `${pn(e.player)} が <b>${nm(e.no)}</b> を${e.revive ? '墓地から' : ''}${e.special ? '特殊' : ''}召喚${e.tributes ? `(生け贄${e.tributes}枚)` : ''}`; break;
       case 'stack': t = `${pn(e.player)} が <b>${nm(e.no)}</b> を${e.special ? '特殊召喚して' : ''}重ねた → ${e.count}枚重ね${e.tributes ? `(生け贄${e.tributes}枚)` : ''}`; break;
       case 'destroyed': t = e.why === 'tribute' ? `${pn(e.player)} の ${nm(e.no)} をリリース` : e.why === 'effect' ? `${pn(e.player)} の ${nm(e.no)} を墓地に送った` : `${pn(e.player)} の ${nm(e.no)} が破壊された`; break;
       case 'cast': t = `${pn(e.player)} が${KIND_LABEL[e.kind]}「<b class="spell-name">${esc(nm(e.id))}</b>」→ ${esc(e.label)}`; break;
@@ -1555,6 +1915,9 @@ function pushLogInner(events, logLines) {
       case 'bounced': t = `　${pn(e.player)} の ${nm(e.no)} が手札に戻った${e.count > 1 ? `(${e.count}枚)` : ''}`; break;
       case 'guard': t = `　${nm(e.no)} は相手のマジックの対象にならない`; break;
       case 'luck': t = `　${e.win ? '<b>' : ''}${esc(e.text)}${e.win ? '</b>' : ''}`; break;
+      case 'recover': t = `　${pn(e.player)} が墓地の${e.no != null ? `「${esc(nm(e.no))}」` : '県'}を手札に戻した`; break;
+      case 'rest': t = `　${nm(e.no)} は鹿に囲まれて攻撃できない`; break;
+      case 'unbuff': t = `　${nm(e.no)} の強化が消えた`; break;
       case 'reset': t = `　${pn(e.player)} の場の県${e.count}枚が山札に戻った`; break;
       case 'magicBonus': t = `　${pn(e.player)} のマジック上限 +${e.plus}`; break;
       case 'attack':
@@ -1659,6 +2022,7 @@ function tokBadges(st) {
     st.buffAtk && (st.buffAtk !== 1 || st.buffDef !== 1) ? `<b class="c-buff">マジック 攻×${+st.buffAtk.toFixed(3)}${st.buffDef !== 1 ? ` 防×${+st.buffDef.toFixed(3)}` : ''}</b>` : '',
     st.fieldAtk && (st.fieldAtk !== 1 || st.fieldDef !== 1) ? `<b class="c-fieldfx">フィールド 攻×${st.fieldAtk}${st.fieldDef !== 1 ? ` 防×${st.fieldDef}` : ''}</b>` : '',
     st.guard ? '<b class="c-buff">マジック無効</b>' : '',
+    st.rest ? '<b class="c-debuff">攻撃不可</b>' : '',
   ].join('');
 }
 // 場の県(小さいカード: 県の形と攻撃・防御だけ)
